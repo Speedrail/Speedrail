@@ -15,7 +15,8 @@ export default function HomePage() {
       <View style={styles.container}>
         <View>
           <View style={styles.actionWrapper}>
-            <TouchableOpacity
+            <Text style={styles.title}>Ready to Speed through Long Island?</Text>
+            {/* <TouchableOpacity
               onPress={() => {
                 // handle onPress
               }}
@@ -23,17 +24,17 @@ export default function HomePage() {
               <View style={styles.action}>
                 <Feather name="menu" size={22} color="#6a99e3" />
               </View>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
             <TouchableOpacity
               onPress={() => {
                 // handle onPress
-              }}>
+              }}
+              style={{ marginLeft: 'auto' }}>
               <View style={styles.action}>
                   <Feather name="bell" size={22} color="#6a99e3" />
               </View>
             </TouchableOpacity>
           </View>
-          <Text style={styles.title}>Ready to Speed through LI?</Text>
           <View style={styles.search}>
             <View style={styles.searchInput}>
               <View style={styles.inputWrapper}>
@@ -78,6 +79,9 @@ const styles = StyleSheet.create({
     color: '#222',
     marginTop: 24,
     marginBottom: 16,
+    textAlign: 'left',
+    flexWrap: 'wrap',
+    width: '85%'
   },
   /** Action */
   action: {
