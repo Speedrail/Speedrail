@@ -73,11 +73,12 @@ export default function TabBar({ state, descriptors, navigation }: { state: any;
       case "index":
         return <Feather name="home" size={24} color={color}/>
       case "tickets":
-        return <Feather name="pen-tool" size={30} color={Colors.light.background}/>
+        return <Feather name="clock" size={30} color={Colors.light.background}/>
+      case "navigation":
+        return <Feather name="map" size={24} color={color}/>
     }
   }
 }
-
 const styles = StyleSheet.create({
   bar: {
     position: 'absolute',

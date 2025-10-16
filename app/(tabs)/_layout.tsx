@@ -28,6 +28,12 @@ export default function TabLayout() {
             title: 'Tickets',
           }}
         />
+        <Tabs.Screen
+          name="navigation"
+          options={{
+            title: 'Navigation',
+          }}
+        />
       </Tabs>
     </View>
   );
