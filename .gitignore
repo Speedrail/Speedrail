@@ -35,3 +35,4 @@ temp/
 
 /ios
 /android
+.env

@@ -1,21 +1,21 @@
 import {
-  calculatePassSavings,
-  fetchMTAFares,
-  fetchServiceAlerts,
-  getFareCapInfo,
-  type MTAFareData,
-  type ServiceAlert
+    calculatePassSavings,
+    fetchMTAFares,
+    fetchServiceAlerts,
+    getFareCapInfo,
+    type MTAFareData,
+    type ServiceAlert
 } from '@/services/mta-api';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -24,7 +24,7 @@ export default function TicketsPage() {
   const [alerts, setAlerts] = useState<ServiceAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<'all' | 'subway' | 'bus' | 'express-bus' | 'rail'>('all');
+  const [selectedCategory, setSelectedCategory] = useState<'all' | 'subway' | 'bus' | 'express-bus' | 'rail' | 'ferry' | 'sir'>('all');
 
   const loadFareData = async () => {
     try {

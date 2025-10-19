@@ -1,4 +1,5 @@
 import { Colors } from '@/constants/theme';
+import { useTabBar } from '@/contexts/tab-bar-context';
 import Feather from '@expo/vector-icons/Feather';
 import { PlatformPressable } from '@react-navigation/elements';
 import { useLinkBuilder } from '@react-navigation/native';
@@ -10,6 +11,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 export default function TabBar({ state, descriptors, navigation }: { state: any; descriptors: any; navigation: any }) {
   const { buildHref } = useLinkBuilder();
   const insets = useSafeAreaInsets();
+  const { isTabBarVisible } = useTabBar();
+
+  if (!isTabBarVisible) {
+    return null;
+  }
 
   return (
     <View style = {[styles.bar, { bottom: Math.max(insets.bottom + 8, 16) }]}>

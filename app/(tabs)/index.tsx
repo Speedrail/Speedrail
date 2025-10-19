@@ -15,7 +15,7 @@ export default function HomePage() {
       <View style={styles.container}>
         <View>
           <View style={styles.actionWrapper}>
-            <Text style={styles.title}>Ready to Speed through Long Island?</Text>
+            <Text style={styles.title}>Ready to Speed through New York?</Text>
             {/* <TouchableOpacity
               onPress={() => {
                 // handle onPress

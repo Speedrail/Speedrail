@@ -1,5 +1,6 @@
 import TabBar from '@/components/tab-bar';
 import { Colors } from '@/constants/theme';
+import { TabBarProvider } from '@/contexts/tab-bar-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Tabs } from 'expo-router';
 import React from 'react';
@@ -11,33 +12,35 @@ export default function TabLayout() {
 
   return (
     <SafeAreaProvider>
-      <View style={{ flex: 1 }}>
-        <Tabs
-          tabBar={(props: any) => <TabBar {...props} />}
-          screenOptions={{
-            tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-            headerShown: false,
-          }}>
-          <Tabs.Screen
-            name="index"
-            options={{
-              title: 'Home',
-            }}
-          />
-          <Tabs.Screen
-            name="tickets"
-            options={{
-              title: 'Tickets',
-            }}
-          />
-          <Tabs.Screen
-            name="navigation"
-            options={{
-              title: 'Navigation',
-            }}
-          />
-        </Tabs>
-      </View>
+      <TabBarProvider>
+        <View style={{ flex: 1 }}>
+          <Tabs
+            tabBar={(props: any) => <TabBar {...props} />}
+            screenOptions={{
+              tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+              headerShown: false,
+            }}>
+            <Tabs.Screen
+              name="index"
+              options={{
+                title: 'Home',
+              }}
+            />
+            <Tabs.Screen
+              name="tickets"
+              options={{
+                title: 'Tickets',
+              }}
+            />
+            <Tabs.Screen
+              name="navigation"
+              options={{
+                title: 'Navigation',
+              }}
+            />
+          </Tabs>
+        </View>
+      </TabBarProvider>
     </SafeAreaProvider>
   );
 }
