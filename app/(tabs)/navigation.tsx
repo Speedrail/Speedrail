@@ -49,7 +49,7 @@ const convertToTransitStation = (
   type: TransitType
 ): TransitStation[] => {
   return stations.map(station => ({
-    id: station.id,
+    id: `${type}-${station.id}`,
     name: station.name,
     type,
     coordinate: {
@@ -145,18 +145,8 @@ export default function NavigationPage() {
       setDataLoading(true);
       const data = await fetchAllTransitStations();
 
-      const railStationNames = new Set([
-        ...data.lirr.map(s => s.name.toLowerCase().trim()),
-        ...data.metroNorth.map(s => s.name.toLowerCase().trim()),
-        ...data.sir.map(s => s.name.toLowerCase().trim()),
-      ]);
-
-      const filteredSubway = data.subway.filter(station => 
-        !railStationNames.has(station.name.toLowerCase().trim())
-      );
-
       const stations: TransitStation[] = [
-        ...convertToTransitStation(filteredSubway, 'subway'),
+        ...convertToTransitStation(data.subway, 'subway'),
         ...convertToTransitStation(data.lirr, 'lirr'),
         ...convertToTransitStation(data.metroNorth, 'metro-north'),
         ...convertToTransitStation(data.sir, 'sir'),
@@ -262,7 +252,7 @@ export default function NavigationPage() {
         return false;
       }
 
-      if (userLocation && selectedFilter !== 'all') {
+      if (userLocation) {
         const distance = calculateDistance(
           userLocation.latitude,
           userLocation.longitude,
@@ -310,7 +300,8 @@ export default function NavigationPage() {
     bottomSheetModalRef.current?.present();
     
     try {
-      const info = await getDetailedStationInfo(station.id, station.type);
+      const originalId = station.id.replace(`${station.type}-`, '');
+      const info = await getDetailedStationInfo(originalId, station.type);
       setStationInfo(info);
     } catch (error) {
       console.error('Error loading station info:', error);

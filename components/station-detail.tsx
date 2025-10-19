@@ -123,15 +123,47 @@ export default function StationDetail({ stationInfo, loading }: StationDetailPro
             />
             <Text style={styles.accessibilityLabel}>ADA Compliant</Text>
           </View>
-          <View style={styles.accessibilityItem}>
-            <MaterialCommunityIcons name="elevator" size={24} color="#6a99e3" />
-            <Text style={styles.accessibilityLabel}>{stationInfo.accessibility.elevators} Elevator{stationInfo.accessibility.elevators !== 1 ? 's' : ''}</Text>
+          <View style={[styles.accessibilityItem, !stationInfo.accessibility.elevatorsAvailable && styles.unavailableItem]}>
+            <MaterialCommunityIcons 
+              name="elevator" 
+              size={24} 
+              color={stationInfo.accessibility.elevatorsAvailable ? '#6a99e3' : '#ccc'} 
+            />
+            <Text style={[
+              styles.accessibilityLabel, 
+              !stationInfo.accessibility.elevatorsAvailable && styles.unavailableText
+            ]}>
+              {stationInfo.accessibility.elevatorsAvailable 
+                ? `${stationInfo.accessibility.elevators} Elevator${stationInfo.accessibility.elevators !== 1 ? 's' : ''}`
+                : 'Elevator data unavailable'
+              }
+            </Text>
           </View>
-          <View style={styles.accessibilityItem}>
-            <MaterialCommunityIcons name="stairs" size={24} color="#6a99e3" />
-            <Text style={styles.accessibilityLabel}>{stationInfo.accessibility.escalators} Escalator{stationInfo.accessibility.escalators !== 1 ? 's' : ''}</Text>
+          <View style={[styles.accessibilityItem, !stationInfo.accessibility.escalatorsAvailable && styles.unavailableItem]}>
+            <MaterialCommunityIcons 
+              name="stairs" 
+              size={24} 
+              color={stationInfo.accessibility.escalatorsAvailable ? '#6a99e3' : '#ccc'} 
+            />
+            <Text style={[
+              styles.accessibilityLabel,
+              !stationInfo.accessibility.escalatorsAvailable && styles.unavailableText
+            ]}>
+              {stationInfo.accessibility.escalatorsAvailable
+                ? `${stationInfo.accessibility.escalators} Escalator${stationInfo.accessibility.escalators !== 1 ? 's' : ''}`
+                : 'Escalator data unavailable'
+              }
+            </Text>
           </View>
         </View>
+        {(!stationInfo.accessibility.elevatorsAvailable || !stationInfo.accessibility.escalatorsAvailable) && (
+          <View style={styles.dataUnavailableNote}>
+            <MaterialCommunityIcons name="information-outline" size={16} color="#ff9800" />
+            <Text style={styles.dataUnavailableText}>
+              Equipment counts are only available for subway stations from MTA's real-time data feed.
+            </Text>
+          </View>
+        )}
         {stationInfo.accessibility.accessibleEntrances.length > 0 && (
           <View style={styles.entrancesContainer}>
             <Text style={styles.entrancesTitle}>Accessible Entrances:</Text>
@@ -149,65 +181,6 @@ export default function StationDetail({ stationInfo, loading }: StationDetailPro
             <Text style={styles.notesText}>{stationInfo.accessibility.notes}</Text>
           </View>
         )}
-      </View>
-
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <MaterialCommunityIcons name="office-building" size={20} color="#222" />
-          <Text style={styles.sectionTitle}>Amenities</Text>
-        </View>
-        <View style={styles.amenitiesGrid}>
-          <View style={styles.amenityItem}>
-            <MaterialCommunityIcons 
-              name={stationInfo.amenities.restrooms ? 'check' : 'close'} 
-              size={20} 
-              color={stationInfo.amenities.restrooms ? '#4CAF50' : '#ccc'} 
-            />
-            <Text style={[styles.amenityText, !stationInfo.amenities.restrooms && styles.amenityTextDisabled]}>
-              Restrooms
-            </Text>
-          </View>
-          <View style={styles.amenityItem}>
-            <MaterialCommunityIcons 
-              name={stationInfo.amenities.parking ? 'check' : 'close'} 
-              size={20} 
-              color={stationInfo.amenities.parking ? '#4CAF50' : '#ccc'} 
-            />
-            <Text style={[styles.amenityText, !stationInfo.amenities.parking && styles.amenityTextDisabled]}>
-              Parking
-            </Text>
-          </View>
-          <View style={styles.amenityItem}>
-            <MaterialCommunityIcons 
-              name={stationInfo.amenities.bikeRacks ? 'check' : 'close'} 
-              size={20} 
-              color={stationInfo.amenities.bikeRacks ? '#4CAF50' : '#ccc'} 
-            />
-            <Text style={[styles.amenityText, !stationInfo.amenities.bikeRacks && styles.amenityTextDisabled]}>
-              Bike Racks
-            </Text>
-          </View>
-          <View style={styles.amenityItem}>
-            <MaterialCommunityIcons 
-              name={stationInfo.amenities.wifi ? 'check' : 'close'} 
-              size={20} 
-              color={stationInfo.amenities.wifi ? '#4CAF50' : '#ccc'} 
-            />
-            <Text style={[styles.amenityText, !stationInfo.amenities.wifi && styles.amenityTextDisabled]}>
-              WiFi
-            </Text>
-          </View>
-          <View style={styles.amenityItem}>
-            <MaterialCommunityIcons 
-              name={stationInfo.amenities.ticketMachine ? 'check' : 'close'} 
-              size={20} 
-              color={stationInfo.amenities.ticketMachine ? '#4CAF50' : '#ccc'} 
-            />
-            <Text style={[styles.amenityText, !stationInfo.amenities.ticketMachine && styles.amenityTextDisabled]}>
-              Ticket Machines
-            </Text>
-          </View>
-        </View>
       </View>
 
       {stationInfo.fares && stationInfo.fares.length > 0 && (
@@ -396,6 +369,29 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     flex: 1,
   },
+  unavailableItem: {
+    opacity: 0.6,
+  },
+  unavailableText: {
+    color: '#999',
+    textDecorationLine: 'line-through',
+  },
+  dataUnavailableNote: {
+    marginTop: 12,
+    flexDirection: 'row',
+    gap: 8,
+    padding: 12,
+    backgroundColor: '#fff3e0',
+    borderRadius: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#ff9800',
+  },
+  dataUnavailableText: {
+    fontSize: 12,
+    color: '#e65100',
+    flex: 1,
+    lineHeight: 16,
+  },
   entrancesContainer: {
     marginTop: 16,
     padding: 12,
@@ -430,28 +426,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#1976d2',
     flex: 1,
-  },
-  amenitiesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  amenityItem: {
-    width: '45%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    padding: 12,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 12,
-  },
-  amenityText: {
-    fontSize: 13,
-    color: '#222',
-    fontWeight: '500',
-  },
-  amenityTextDisabled: {
-    color: '#ccc',
   },
   fareItem: {
     flexDirection: 'row',

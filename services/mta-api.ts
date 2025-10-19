@@ -47,6 +47,9 @@ export interface SubwayStation {
   longitude: number;
   borough: string;
   structure: string;
+  ada: boolean;
+  adaNorthbound: boolean;
+  adaSouthbound: boolean;
 }
 
 export interface BusStop {
@@ -56,6 +59,7 @@ export interface BusStop {
   latitude: number;
   longitude: number;
   direction?: string;
+  wheelchairBoarding?: number;
 }
 
 export interface RailStation {
@@ -65,6 +69,8 @@ export interface RailStation {
   latitude: number;
   longitude: number;
   lines?: string[];
+  wheelchairBoarding?: number;
+  stopUrl?: string;
 }
 
 export interface FerryStop {
@@ -74,6 +80,7 @@ export interface FerryStop {
   latitude: number;
   longitude: number;
   borough?: string;
+  wheelchairAccessible?: boolean;
 }
 
 export interface StationAccessibility {
@@ -83,6 +90,8 @@ export interface StationAccessibility {
   ada: boolean;
   accessibleEntrances: string[];
   notes?: string;
+  elevatorsAvailable?: boolean;
+  escalatorsAvailable?: boolean;
 }
 
 export interface StationAmenities {
@@ -143,7 +152,10 @@ export interface TripUpdate {
 const MTA_API_BASE = 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds';
 const MTA_STATIC_BASE = 'http://web.mta.info/developers/data/nyct/subway/Stations.csv';
 const BUS_TIME_API = 'https://bustime.mta.info/api/siri';
-const FERRY_API = 'https://www.ferry.nyc/schedules-and-ticketing/';
+const NYC_FERRY_GTFS = 'http://nycferry.connexionz.net/rtt/public/resource/gtfs.zip';
+const NYC_FERRY_ALERTS = 'http://nycferry.connexionz.net/rtt/public/utility/gtfsrealtime.aspx/alert';
+const NYC_FERRY_TRIP_UPDATES = 'http://nycferry.connexionz.net/rtt/public/utility/gtfsrealtime.aspx/tripupdate';
+const SIR_GTFS = 'https://rrgtfsfeeds.s3.amazonaws.com/gtfs_si.zip';
 
 let MTA_BUS_API_KEY = process.env.MTA_BUS_API_KEY || '';
 
@@ -153,14 +165,80 @@ interface CachedData<T> {
 }
 
 const CACHE_DURATION = 24 * 60 * 60 * 1000;
+const EQUIPMENT_CACHE_DURATION = 60 * 60 * 1000;
 const stationCache = {
   lirr: null as CachedData<RailStation[]> | null,
   metroNorth: null as CachedData<RailStation[]> | null,
   subway: null as CachedData<SubwayStation[]> | null,
+  sir: null as CachedData<RailStation[]> | null,
+  ferry: null as CachedData<FerryStop[]> | null,
 };
+
+interface EquipmentData {
+  [stationComplexId: string]: {
+    elevators: number;
+    escalators: number;
+    accessibleEntrances: string[];
+  };
+}
+
+let equipmentCache: CachedData<EquipmentData> | null = null;
 
 export function setBusApiKey(key: string) {
   MTA_BUS_API_KEY = key;
+}
+
+async function fetchStationEquipment(): Promise<EquipmentData> {
+  if (equipmentCache) {
+    const age = Date.now() - equipmentCache.timestamp;
+    if (age < EQUIPMENT_CACHE_DURATION) {
+      return equipmentCache.data;
+    }
+  }
+
+  try {
+    const response = await fetch('https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fnyct_ene_equipments.json');
+    const data = await response.json();
+    
+    const equipmentByStation: EquipmentData = {};
+    
+    if (Array.isArray(data)) {
+      for (const item of data) {
+        const stationId = item.stationcomplexid || item.elevatormrn;
+        if (!stationId) continue;
+        
+        if (!equipmentByStation[stationId]) {
+          equipmentByStation[stationId] = {
+            elevators: 0,
+            escalators: 0,
+            accessibleEntrances: [],
+          };
+        }
+        
+        if (item.equipmenttype === 'EL') {
+          equipmentByStation[stationId].elevators++;
+          if (item.ADA === 'Y' && item.serving) {
+            const entranceDesc = item.serving.split(' to ')[0]?.trim();
+            if (entranceDesc && !equipmentByStation[stationId].accessibleEntrances.includes(entranceDesc)) {
+              equipmentByStation[stationId].accessibleEntrances.push(entranceDesc);
+            }
+          }
+        } else if (item.equipmenttype === 'ES') {
+          equipmentByStation[stationId].escalators++;
+        }
+      }
+    }
+    
+    equipmentCache = {
+      data: equipmentByStation,
+      timestamp: Date.now(),
+    };
+    
+    return equipmentByStation;
+  } catch (error) {
+    console.error('Error fetching station equipment:', error);
+    return equipmentCache?.data || {};
+  }
 }
 
 const MTA_FARE_DATA: MTAFareData = {
@@ -281,7 +359,7 @@ export async function fetchMTAFares(): Promise<MTAFareData> {
   };
 }
 
-export async function fetchServiceAlerts(mode?: 'subway' | 'bus' | 'lirr' | 'mnr'): Promise<ServiceAlert[]> {
+export async function fetchServiceAlerts(mode?: 'subway' | 'bus' | 'lirr' | 'mnr' | 'ferry'): Promise<ServiceAlert[]> {
   try {
     let endpoint = `${MTA_API_BASE}/camsys/all-alerts.json`;
     
@@ -293,6 +371,8 @@ export async function fetchServiceAlerts(mode?: 'subway' | 'bus' | 'lirr' | 'mnr
       endpoint = `${MTA_API_BASE}/camsys/lirr-alerts.json`;
     } else if (mode === 'mnr') {
       endpoint = `${MTA_API_BASE}/camsys/mnr-alerts.json`;
+    } else if (mode === 'ferry') {
+      return await fetchFerryAlerts();
     }
 
     const response = await fetch(endpoint);
@@ -327,7 +407,7 @@ export async function fetchServiceAlerts(mode?: 'subway' | 'bus' | 'lirr' | 'mnr
           const activePeriod = alert.active_period?.[0] || {};
           
           alerts.push({
-            id: entity.id || Math.random().toString(),
+            id: entity.id || `alert-${Date.now()}-${alerts.length}`,
             header: headerText,
             description: descriptionText,
             affectedRoutes,
@@ -344,6 +424,66 @@ export async function fetchServiceAlerts(mode?: 'subway' | 'bus' | 'lirr' | 'mnr
     return alerts;
   } catch (error) {
     console.error('Error fetching service alerts:', error);
+    return [];
+  }
+}
+
+async function fetchFerryAlerts(): Promise<ServiceAlert[]> {
+  try {
+    const response = await fetch(NYC_FERRY_ALERTS);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ferry alerts: ${response.status}`);
+    }
+    
+    const arrayBuffer = await response.arrayBuffer();
+    const data = await (await import('gtfs-realtime-bindings')).transit_realtime.FeedMessage.decode(new Uint8Array(arrayBuffer));
+    
+    const alerts: ServiceAlert[] = [];
+    
+    if (data.entity && Array.isArray(data.entity)) {
+      for (const entity of data.entity) {
+        if (entity.alert) {
+          const alert = entity.alert;
+          const headerText = alert.headerText?.translation?.[0]?.text || 'Ferry Service Alert';
+          const descriptionText = alert.descriptionText?.translation?.[0]?.text || '';
+          
+          const affectedRoutes: string[] = [];
+          if (alert.informedEntity && Array.isArray(alert.informedEntity)) {
+            for (const informed of alert.informedEntity) {
+              if (informed.routeId && !affectedRoutes.includes(informed.routeId)) {
+                affectedRoutes.push(informed.routeId);
+              }
+            }
+          }
+
+          let severity: 'warning' | 'info' | 'critical' = 'info';
+          if (headerText.toLowerCase().includes('delay') || headerText.toLowerCase().includes('cancelled')) {
+            severity = 'warning';
+          }
+          if (headerText.toLowerCase().includes('no service')) {
+            severity = 'critical';
+          }
+
+          const activePeriod = alert.activePeriod?.[0] || {};
+          
+          alerts.push({
+            id: entity.id || `ferry-alert-${Date.now()}-${alerts.length}`,
+            header: headerText,
+            description: descriptionText,
+            affectedRoutes,
+            severity,
+            activePeriod: {
+              start: activePeriod.start ? new Date(Number(activePeriod.start) * 1000).toISOString() : new Date().toISOString(),
+              end: activePeriod.end ? new Date(Number(activePeriod.end) * 1000).toISOString() : undefined,
+            },
+          });
+        }
+      }
+    }
+    
+    return alerts;
+  } catch (error) {
+    console.error('Error fetching ferry alerts:', error);
     return [];
   }
 }
@@ -408,13 +548,16 @@ export async function fetchSubwayStations(): Promise<SubwayStation[]> {
     const data = await response.json();
     
     const stations = data.map((station: any) => ({
-      id: station.objectid || station.station_id,
-      name: station.name || station.stop_name,
-      routes: station.line ? station.line.split('-') : [],
+      id: station.complex_id || station.station_id || station.gtfs_stop_id,
+      name: station.stop_name || station.name,
+      routes: station.daytime_routes ? station.daytime_routes.trim().split(/\s+/) : (station.line ? station.line.split('-') : []),
       latitude: parseFloat(station.gtfs_latitude || station.latitude),
       longitude: parseFloat(station.gtfs_longitude || station.longitude),
       borough: station.borough || 'Unknown',
       structure: station.structure || 'Unknown',
+      ada: station.ada === '1' || station.ada === 1 || station.ada === true,
+      adaNorthbound: station.ada_northbound === '1' || station.ada_northbound === 1 || station.ada_northbound === true,
+      adaSouthbound: station.ada_southbound === '1' || station.ada_southbound === 1 || station.ada_southbound === true,
     })).filter((s: SubwayStation) => !isNaN(s.latitude) && !isNaN(s.longitude));
     
     stationCache.subway = {
@@ -471,7 +614,7 @@ export async function fetchBusStops(latitude?: number, longitude?: number, radiu
   }
 }
 
-async function parseGTFSStops(zipUrl: string, type: 'lirr' | 'metro-north'): Promise<RailStation[]> {
+async function parseGTFSStops(zipUrl: string, type: 'lirr' | 'metro-north' | 'sir'): Promise<RailStation[]> {
   try {
     const response = await fetch(zipUrl);
     
@@ -480,7 +623,7 @@ async function parseGTFSStops(zipUrl: string, type: 'lirr' | 'metro-north'): Pro
     }
     
     const arrayBuffer = await response.arrayBuffer();
-    const JSZip = (await import('jszip')).default;
+    const JSZip = await import('jszip');
     const zip = await JSZip.loadAsync(arrayBuffer);
     
     const stopsFile = zip.file('stops.txt');
@@ -502,6 +645,8 @@ async function parseGTFSStops(zipUrl: string, type: 'lirr' | 'metro-north'): Pro
     const stopLatIndex = headers.indexOf('stop_lat');
     const stopLonIndex = headers.indexOf('stop_lon');
     const locationTypeIndex = headers.indexOf('location_type');
+    const wheelchairBoardingIndex = headers.indexOf('wheelchair_boarding');
+    const stopUrlIndex = headers.indexOf('stop_url');
     
     if (stopIdIndex === -1 || stopNameIndex === -1 || stopLatIndex === -1 || stopLonIndex === -1) {
       console.error('Missing required columns in stops.txt for', type);
@@ -545,12 +690,18 @@ async function parseGTFSStops(zipUrl: string, type: 'lirr' | 'metro-north'): Pro
         const stopName = values[stopNameIndex];
         
         if (!isNaN(lat) && !isNaN(lon) && stopName && stopName.length > 0) {
+          const wheelchairBoarding = wheelchairBoardingIndex !== -1 ? 
+            parseInt(values[wheelchairBoardingIndex]) || undefined : undefined;
+          const stopUrl = stopUrlIndex !== -1 ? values[stopUrlIndex] : undefined;
+          
           stations.push({
             id: values[stopIdIndex],
             name: stopName,
             type,
             latitude: lat,
             longitude: lon,
+            wheelchairBoarding,
+            stopUrl,
           });
         }
       }
@@ -632,38 +783,156 @@ export async function fetchMetroNorthStations(): Promise<RailStation[]> {
 }
 
 export async function fetchStatenIslandRailwayStations(): Promise<RailStation[]> {
-  const stations: RailStation[] = [
-    { id: 'st-george', name: 'St. George', type: 'sir', latitude: 40.6437, longitude: -74.0737 },
-    { id: 'tompkinsville', name: 'Tompkinsville', type: 'sir', latitude: 40.6371, longitude: -74.0750 },
-    { id: 'stapleton', name: 'Stapleton', type: 'sir', latitude: 40.6278, longitude: -74.0758 },
-    { id: 'clifton', name: 'Clifton', type: 'sir', latitude: 40.6214, longitude: -74.0697 },
-    { id: 'grasmere', name: 'Grasmere', type: 'sir', latitude: 40.6028, longitude: -74.0844 },
-    { id: 'new-dorp', name: 'New Dorp', type: 'sir', latitude: 40.5732, longitude: -74.1167 },
-    { id: 'great-kills', name: 'Great Kills', type: 'sir', latitude: 40.5555, longitude: -74.1506 },
-    { id: 'eltingville', name: 'Eltingville', type: 'sir', latitude: 40.5444, longitude: -74.1644 },
-    { id: 'tottenville', name: 'Tottenville', type: 'sir', latitude: 40.5126, longitude: -74.2242 },
-  ];
-  
-  return stations;
+  try {
+    if (stationCache.sir) {
+      const age = Date.now() - stationCache.sir.timestamp;
+      if (age < CACHE_DURATION) {
+        console.log(`Using cached SIR stations (${Math.round(age / 1000 / 60)} minutes old)`);
+        return stationCache.sir.data;
+      }
+    }
+
+    const stations = await parseGTFSStops(SIR_GTFS, 'sir');
+    
+    stationCache.sir = {
+      data: stations,
+      timestamp: Date.now(),
+    };
+    
+    console.log(`Fetched ${stations.length} SIR stations from MTA GTFS`);
+    return stations;
+  } catch (error) {
+    console.error('Error fetching SIR stations from MTA GTFS:', error);
+    
+    if (stationCache.sir) {
+      console.log('Returning stale cached data due to error');
+      return stationCache.sir.data;
+    }
+    
+    return [];
+  }
 }
 
 export async function fetchFerryStops(): Promise<FerryStop[]> {
-  const stops: FerryStop[] = [
-    { id: 'wall-st', name: 'Wall St/Pier 11', routes: ['South Brooklyn', 'Rockaway', 'Astoria'], latitude: 40.7033, longitude: -74.0115, borough: 'Manhattan' },
-    { id: 'brooklyn-bridge', name: 'Brooklyn Bridge/Pier 1', routes: ['South Brooklyn'], latitude: 40.7025, longitude: -73.9965, borough: 'Brooklyn' },
-    { id: 'sunset-park', name: 'Sunset Park/Brooklyn Army Terminal', routes: ['South Brooklyn'], latitude: 40.6444, longitude: -74.0272, borough: 'Brooklyn' },
-    { id: 'bay-ridge', name: 'Bay Ridge', routes: ['South Brooklyn'], latitude: 40.6264, longitude: -74.0332, borough: 'Brooklyn' },
-    { id: 'red-hook', name: 'Red Hook/Atlantic Basin', routes: ['South Brooklyn'], latitude: 40.6751, longitude: -74.0139, borough: 'Brooklyn' },
-    { id: 'astoria', name: 'Astoria/Hallets Point', routes: ['Astoria'], latitude: 40.7767, longitude: -73.9366, borough: 'Queens' },
-    { id: 'roosevelt-island', name: 'Roosevelt Island', routes: ['Astoria'], latitude: 40.7622, longitude: -73.9503, borough: 'Manhattan' },
-    { id: 'long-island-city', name: 'Long Island City', routes: ['Astoria'], latitude: 40.7464, longitude: -73.9582, borough: 'Queens' },
-    { id: 'rockaway', name: 'Rockaway/Beach 108 St', routes: ['Rockaway'], latitude: 40.5812, longitude: -73.8297, borough: 'Queens' },
-    { id: 'governors-island', name: 'Governors Island', routes: ['Governors Island'], latitude: 40.6906, longitude: -74.0178, borough: 'Manhattan' },
-    { id: 'st-george-ferry', name: 'St. George Ferry Terminal', routes: ['Staten Island Ferry'], latitude: 40.6437, longitude: -74.0737, borough: 'Staten Island' },
-    { id: 'whitehall-ferry', name: 'Whitehall Ferry Terminal', routes: ['Staten Island Ferry'], latitude: 40.7017, longitude: -74.0133, borough: 'Manhattan' },
-  ];
-  
-  return stops;
+  try {
+    if (stationCache.ferry) {
+      const age = Date.now() - stationCache.ferry.timestamp;
+      if (age < CACHE_DURATION) {
+        console.log(`Using cached ferry stops (${Math.round(age / 1000 / 60)} minutes old)`);
+        return stationCache.ferry.data;
+      }
+    }
+
+    const response = await fetch(NYC_FERRY_GTFS);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch NYC ferry GTFS: ${response.status}`);
+    }
+    
+    const arrayBuffer = await response.arrayBuffer();
+    const JSZip = await import('jszip');
+    const zip = await JSZip.loadAsync(arrayBuffer);
+    
+    const stopsFile = zip.file('stops.txt');
+    if (!stopsFile) {
+      throw new Error('stops.txt not found in NYC Ferry GTFS zip');
+    }
+    
+    const stopsText = await stopsFile.async('text');
+    const lines = stopsText.trim().split('\n');
+    
+    if (lines.length === 0) {
+      throw new Error('stops.txt is empty');
+    }
+    
+    const headers = lines[0].split(',').map((h: string) => h.trim().replace(/"/g, ''));
+    
+    const stopIdIndex = headers.indexOf('stop_id');
+    const stopNameIndex = headers.indexOf('stop_name');
+    const stopLatIndex = headers.indexOf('stop_lat');
+    const stopLonIndex = headers.indexOf('stop_lon');
+    const wheelchairBoardingIndex = headers.indexOf('wheelchair_boarding');
+    
+    if (stopIdIndex === -1 || stopNameIndex === -1 || stopLatIndex === -1 || stopLonIndex === -1) {
+      throw new Error('Invalid stops.txt format');
+    }
+    
+    const routesFile = zip.file('routes.txt');
+    let routeNames: { [key: string]: string } = {};
+    if (routesFile) {
+      const routesText = await routesFile.async('text');
+      const routeLines = routesText.trim().split('\n');
+      const routeHeaders = routeLines[0].split(',').map((h: string) => h.trim().replace(/"/g, ''));
+      const routeIdIdx = routeHeaders.indexOf('route_id');
+      const routeNameIdx = routeHeaders.indexOf('route_long_name');
+      
+      for (let i = 1; i < routeLines.length; i++) {
+        const values = routeLines[i].split(',').map((v: string) => v.trim().replace(/"/g, ''));
+        if (routeIdIdx !== -1 && routeNameIdx !== -1 && values[routeIdIdx]) {
+          routeNames[values[routeIdIdx]] = values[routeNameIdx];
+        }
+      }
+    }
+    
+    const stops: FerryStop[] = [];
+    
+    for (let i = 1; i < lines.length; i++) {
+      if (!lines[i].trim()) continue;
+      
+      const line = lines[i];
+      const values: string[] = [];
+      let currentValue = '';
+      let insideQuotes = false;
+      
+      for (let j = 0; j < line.length; j++) {
+        const char = line[j];
+        
+        if (char === '"') {
+          insideQuotes = !insideQuotes;
+        } else if (char === ',' && !insideQuotes) {
+          values.push(currentValue.trim().replace(/"/g, ''));
+          currentValue = '';
+        } else {
+          currentValue += char;
+        }
+      }
+      values.push(currentValue.trim().replace(/"/g, ''));
+      
+      const lat = parseFloat(values[stopLatIndex]);
+      const lon = parseFloat(values[stopLonIndex]);
+      const stopName = values[stopNameIndex];
+      
+      if (!isNaN(lat) && !isNaN(lon) && stopName && stopName.length > 0) {
+        const wheelchairAccessible = wheelchairBoardingIndex !== -1 ? 
+          (values[wheelchairBoardingIndex] === '1' || values[wheelchairBoardingIndex] === 'true') : true;
+        
+        stops.push({
+          id: values[stopIdIndex],
+          name: stopName,
+          routes: [],
+          latitude: lat,
+          longitude: lon,
+          wheelchairAccessible,
+        });
+      }
+    }
+    
+    stationCache.ferry = {
+      data: stops,
+      timestamp: Date.now(),
+    };
+    
+    console.log(`Fetched ${stops.length} ferry stops from NYC Ferry GTFS`);
+    return stops;
+  } catch (error) {
+    console.error('Error fetching ferry stops:', error);
+    
+    if (stationCache.ferry) {
+      console.log('Returning stale cached ferry data due to error');
+      return stationCache.ferry.data;
+    }
+    
+    return [];
+  }
 }
 
 export async function fetchRealtimeVehiclePositions(routeId?: string): Promise<VehiclePosition[]> {
@@ -932,13 +1201,14 @@ export async function getDetailedStationInfo(
       return null;
     }
 
-    const accessibility = getStationAccessibility(stationId, type);
-    const amenities = getStationAmenities(stationId, type);
+    const accessibility = await getStationAccessibility(stationId, type, baseStation);
+    const amenities = getStationAmenities(stationId, type, baseStation.name);
     const alerts = await fetchServiceAlerts();
     const stationAlerts = alerts.filter(alert =>
       routes.some(route => alert.affectedRoutes.includes(route))
     );
     const fares = await getFaresForStation(type);
+    const address = await getStationAddress(baseStation.latitude, baseStation.longitude, baseStation.name);
 
     return {
       id: baseStation.id,
@@ -953,7 +1223,7 @@ export async function getDetailedStationInfo(
       amenities,
       alerts: stationAlerts,
       fares,
-      address: getStationAddress(stationId, type),
+      address,
     };
   } catch (error) {
     console.error('Error getting detailed station info:', error);
@@ -961,125 +1231,143 @@ export async function getDetailedStationInfo(
   }
 }
 
-function getStationAccessibility(
+async function getStationAccessibility(
   stationId: string,
-  type: 'subway' | 'bus' | 'lirr' | 'metro-north' | 'ferry' | 'sir'
-): StationAccessibility {
-  const accessibilityData: { [key: string]: StationAccessibility } = {
-    'penn': {
-      wheelchairAccessible: true,
-      elevators: 8,
-      escalators: 12,
-      ada: true,
-      accessibleEntrances: ['7th Ave', '8th Ave', '33rd St'],
-      notes: 'Fully accessible with multiple elevators and ramps',
-    },
-    'grand-central': {
-      wheelchairAccessible: true,
-      elevators: 10,
-      escalators: 15,
-      ada: true,
-      accessibleEntrances: ['42nd St', 'Vanderbilt Ave', 'Lexington Ave'],
-      notes: 'Fully accessible terminal with comprehensive facilities',
-    },
-    'atlantic': {
-      wheelchairAccessible: true,
-      elevators: 6,
-      escalators: 8,
-      ada: true,
-      accessibleEntrances: ['Atlantic Ave', 'Flatbush Ave'],
-      notes: 'Major transit hub with full accessibility',
-    },
-    'jamaica': {
-      wheelchairAccessible: true,
-      elevators: 4,
-      escalators: 6,
-      ada: true,
-      accessibleEntrances: ['Sutphin Blvd', 'Archer Ave'],
-      notes: 'ADA compliant with elevator access to all platforms',
-    },
-    'st-george': {
-      wheelchairAccessible: true,
-      elevators: 3,
-      escalators: 4,
-      ada: true,
-      accessibleEntrances: ['Richmond Terrace'],
-      notes: 'Ferry terminal with full accessibility features',
-    },
-  };
+  type: 'subway' | 'bus' | 'lirr' | 'metro-north' | 'ferry' | 'sir',
+  baseStation?: any
+): Promise<StationAccessibility> {
+  let wheelchairAccessible = false;
+  let ada = false;
+  let elevators = 0;
+  let escalators = 0;
+  let accessibleEntrances: string[] = [];
+  let notes: string | undefined;
+  let elevatorsAvailable = false;
+  let escalatorsAvailable = false;
+  
+  if (type === 'subway' && baseStation) {
+    wheelchairAccessible = baseStation.ada || baseStation.adaNorthbound || baseStation.adaSouthbound;
+    ada = baseStation.ada;
+    elevatorsAvailable = true;
+    escalatorsAvailable = true;
+    
+    const equipment = await fetchStationEquipment();
+    const stationEquipment = equipment[stationId];
+    if (stationEquipment) {
+      elevators = stationEquipment.elevators;
+      escalators = stationEquipment.escalators;
+      accessibleEntrances = stationEquipment.accessibleEntrances;
+    }
+  } else if ((type === 'lirr' || type === 'metro-north' || type === 'sir') && baseStation) {
+    elevatorsAvailable = false;
+    escalatorsAvailable = false;
+    
+    if (baseStation.wheelchairBoarding === 1) {
+      wheelchairAccessible = true;
+      ada = true;
+    } else if (baseStation.wheelchairBoarding === 2) {
+      wheelchairAccessible = false;
+      ada = false;
+      notes = 'Station is not wheelchair accessible';
+    } else if (baseStation.wheelchairBoarding === 0) {
+      wheelchairAccessible = false;
+      ada = false;
+      notes = 'No wheelchair accessibility information available';
+    }
+  } else if (type === 'ferry' && baseStation) {
+    wheelchairAccessible = baseStation.wheelchairAccessible === true;
+    ada = baseStation.wheelchairAccessible === true;
+    elevatorsAvailable = false;
+    escalatorsAvailable = false;
+  } else {
+    notes = 'Accessibility information not available';
+  }
 
-  return accessibilityData[stationId] || {
-    wheelchairAccessible: Math.random() > 0.3,
-    elevators: Math.floor(Math.random() * 4),
-    escalators: Math.floor(Math.random() * 6),
-    ada: Math.random() > 0.3,
-    accessibleEntrances: ['Main entrance'],
-    notes: type === 'ferry' ? 'Accessible boarding available' : 'Contact station for accessibility information',
+  return {
+    wheelchairAccessible,
+    elevators,
+    escalators,
+    ada,
+    accessibleEntrances,
+    notes,
+    elevatorsAvailable,
+    escalatorsAvailable,
   };
 }
 
 function getStationAmenities(
   stationId: string,
-  type: 'subway' | 'bus' | 'lirr' | 'metro-north' | 'ferry' | 'sir'
+  type: 'subway' | 'bus' | 'lirr' | 'metro-north' | 'ferry' | 'sir',
+  stationName?: string
 ): StationAmenities {
-  const majorStations = ['penn', 'grand-central', 'atlantic', 'jamaica', 'st-george'];
-  const isMajor = majorStations.includes(stationId);
-
-  if (type === 'ferry') {
-    return {
-      restrooms: true,
-      parking: false,
-      bikeRacks: true,
-      wifi: true,
-      ticketMachine: true,
-    };
-  }
-
-  if (type === 'lirr' || type === 'metro-north') {
-    return {
-      restrooms: isMajor,
-      parking: true,
-      bikeRacks: true,
-      wifi: isMajor,
-      ticketMachine: true,
-    };
-  }
-
-  if (type === 'subway' || type === 'sir') {
-    return {
-      restrooms: isMajor,
-      parking: false,
-      bikeRacks: !isMajor,
-      wifi: Math.random() > 0.5,
-      ticketMachine: true,
-    };
-  }
-
   return {
     restrooms: false,
     parking: false,
-    bikeRacks: true,
+    bikeRacks: false,
     wifi: false,
-    ticketMachine: true,
+    ticketMachine: false,
   };
 }
 
-function getStationAddress(
-  stationId: string,
-  type: 'subway' | 'bus' | 'lirr' | 'metro-north' | 'ferry' | 'sir'
-): string {
-  const addresses: { [key: string]: string } = {
-    'penn': '8th Avenue & 33rd Street, Manhattan, NY 10001',
-    'grand-central': '89 E 42nd Street, Manhattan, NY 10017',
-    'atlantic': '139 Flatbush Avenue, Brooklyn, NY 11217',
-    'jamaica': 'Jamaica Station, Queens, NY 11435',
-    'wall-st': 'Pier 11, Wall Street, Manhattan, NY 10005',
-    'st-george': '1 Bay Street, Staten Island, NY 10301',
-    'yankee-stadium': 'E 153rd Street, Bronx, NY 10451',
-    'whitehall-ferry': 'Whitehall Terminal, Manhattan, NY 10004',
-  };
-
-  return addresses[stationId] || 'Address not available';
+async function getStationAddress(
+  latitude: number,
+  longitude: number,
+  stationName?: string
+): Promise<string | undefined> {
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
+      {
+        headers: {
+          'User-Agent': 'Speedrail Transit App',
+        },
+      }
+    );
+    
+    if (!response.ok) {
+      return undefined;
+    }
+    
+    const data = await response.json();
+    
+    if (data.address) {
+      const parts: string[] = [];
+      
+      if (data.address.house_number) {
+        parts.push(data.address.house_number);
+      }
+      if (data.address.road) {
+        parts.push(data.address.road);
+      }
+      
+      const cityParts: string[] = [];
+      if (data.address.neighbourhood || data.address.suburb) {
+        cityParts.push(data.address.neighbourhood || data.address.suburb);
+      }
+      if (data.address.city || data.address.town || data.address.village) {
+        cityParts.push(data.address.city || data.address.town || data.address.village);
+      }
+      if (data.address.state) {
+        cityParts.push(data.address.state);
+      }
+      if (data.address.postcode) {
+        cityParts.push(data.address.postcode);
+      }
+      
+      if (parts.length > 0 && cityParts.length > 0) {
+        return `${parts.join(' ')}, ${cityParts.join(', ')}`;
+      } else if (cityParts.length > 0) {
+        return cityParts.join(', ');
+      } else if (data.display_name) {
+        return data.display_name;
+      }
+    }
+    
+    return undefined;
+  } catch (error) {
+    console.error('Error fetching address:', error);
+    return undefined;
+  }
 }
 
 async function getFaresForStation(
