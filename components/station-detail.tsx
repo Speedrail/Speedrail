@@ -2,10 +2,10 @@ import { type DetailedStationInfo } from '@/services/mta-api';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import React from 'react';
 import {
-    ActivityIndicator,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 
 interface StationDetailProps {
@@ -160,7 +160,7 @@ export default function StationDetail({ stationInfo, loading }: StationDetailPro
           <View style={styles.dataUnavailableNote}>
             <MaterialCommunityIcons name="information-outline" size={16} color="#ff9800" />
             <Text style={styles.dataUnavailableText}>
-              Equipment counts are only available for subway stations from MTA's real-time data feed.
+              Equipment counts are only available for subway stations from MTA&apos;s real-time data feed.
             </Text>
           </View>
         )}
