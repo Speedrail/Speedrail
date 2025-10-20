@@ -124,7 +124,7 @@ export default function HomePage() {
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#fff' }}>
-      <ScrollView style={styles.container}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
         <View>
           <View style={styles.actionWrapper}>
             <Text style={styles.title}>Ready to Speed through New York?</Text>
@@ -240,6 +240,9 @@ const styles = StyleSheet.create({
   container: {
     padding: 24,
     flexGrow: 1,
+  },
+  scrollContent: {
+    paddingBottom: 100,
   },
   title: {
     fontSize: 27,

@@ -8,6 +8,8 @@ import {
   View,
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTabBar } from '../contexts/tab-bar-context';
 import { GoogleMapsService, RouteStep, TransitRoute } from '../services/google-maps-api';
 
 interface LiveTrackingViewProps {
@@ -16,6 +18,7 @@ interface LiveTrackingViewProps {
 }
 
 export default function LiveTrackingView({ route, onBack }: LiveTrackingViewProps) {
+  const { setTabBarVisible } = useTabBar();
   const leg = route.legs?.[0];
   const [region, setRegion] = useState({
     latitude: leg?.start_location?.lat || 40.7128,
@@ -26,6 +29,14 @@ export default function LiveTrackingView({ route, onBack }: LiveTrackingViewProp
   const [routeCoordinates, setRouteCoordinates] = useState<
     Array<{ latitude: number; longitude: number }>
   >([]);
+
+  useEffect(() => {
+    setTabBarVisible(false);
+    
+    return () => {
+      setTabBarVisible(true);
+    };
+  }, [setTabBarVisible]);
 
   useEffect(() => {
     if (!leg) return;
@@ -78,7 +89,7 @@ export default function LiveTrackingView({ route, onBack }: LiveTrackingViewProp
 
   if (!leg) {
     return (
-      <View style={styles.container}>
+      <SafeAreaView edges={['top']} style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={onBack} style={styles.backButton}>
             <Feather name="arrow-left" size={24} color="#222" />
@@ -89,12 +100,12 @@ export default function LiveTrackingView({ route, onBack }: LiveTrackingViewProp
         <View style={styles.mapContainer}>
           <Text style={{ textAlign: 'center', marginTop: 20 }}>No route data available</Text>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView edges={['top']} style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity 
           onPress={onBack} 
@@ -213,7 +224,7 @@ export default function LiveTrackingView({ route, onBack }: LiveTrackingViewProp
           ))}
         </ScrollView>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -227,12 +238,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 16,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
   backButton: {
     padding: 8,
+    marginLeft: -8,
+    zIndex: 10,
   },
   headerTitle: {
     fontSize: 18,
