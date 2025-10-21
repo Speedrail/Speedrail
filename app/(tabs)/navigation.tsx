@@ -600,7 +600,7 @@ const styles = StyleSheet.create({
   },
   legendContainer: {
     position: 'absolute',
-    bottom: 100,
+    bottom: 115,
     left: 16,
     right: 16,
     flexDirection: 'row',

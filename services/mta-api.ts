@@ -150,11 +150,11 @@ export interface TripUpdate {
 }
 
 const MTA_API_BASE = 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds';
-const MTA_STATIC_BASE = 'http://web.mta.info/developers/data/nyct/subway/Stations.csv';
+const MTA_STATIC_BASE = 'https://web.mta.info/developers/data/nyct/subway/Stations.csv';
 const BUS_TIME_API = 'https://bustime.mta.info/api/siri';
-const NYC_FERRY_GTFS = 'http://nycferry.connexionz.net/rtt/public/resource/gtfs.zip';
-const NYC_FERRY_ALERTS = 'http://nycferry.connexionz.net/rtt/public/utility/gtfsrealtime.aspx/alert';
-const NYC_FERRY_TRIP_UPDATES = 'http://nycferry.connexionz.net/rtt/public/utility/gtfsrealtime.aspx/tripupdate';
+const NYC_FERRY_GTFS = 'https://nycferry.connexionz.net/rtt/public/resource/gtfs.zip';
+const NYC_FERRY_ALERTS = 'https://nycferry.connexionz.net/rtt/public/utility/gtfsrealtime.aspx/alert';
+const NYC_FERRY_TRIP_UPDATES = 'https://nycferry.connexionz.net/rtt/public/utility/gtfsrealtime.aspx/tripupdate';
 const SIR_GTFS = 'https://rrgtfsfeeds.s3.amazonaws.com/gtfs_si.zip';
 
 let MTA_BUS_API_KEY = process.env.MTA_BUS_API_KEY || '';
