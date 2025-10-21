@@ -1,50 +1,80 @@
-# Welcome to your Expo app 👋
+# Speedrail
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Issues](https://img.shields.io/github/issues/Speedrail/Speedrail)](https://github.com/Speedrail/Speedrail/issues)
+[![Version](https://img.shields.io/badge/version-0.06-orange)](https://github.com/Speedrail/Speedrail)
 
-## Get started
+## Overview
 
-1. Install dependencies
+Speedrail is a modern transit tracking and route planning app built with Expo and React Native. It has many useful features from a variety of apps combined into one, including live tracking, notifications, station maps, station data, etc.
 
-   ```bash
-   npm install
-   ```
+## Features
 
-2. Start the app
+- Real-time transit data 
+- Live tracking view for stations and routes
+- Route planning and station details
+- Google Maps and MTA API fetching
 
-   ```bash
-   npx expo start
-   ```
+## Getting Started
 
-In the output, you'll find options to open the app in a
+### Prerequisites
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+- Node.js >= 16.x
+- npm >= 7.x
+- Expo CLI (`npm install -g expo-cli`)
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+### Installation
 
-## Get a fresh project
+```bash
+npm install
+```
 
-When you're ready, run:
+### Running the App
+
+```bash
+npx expo start
+```
+
+You can open the app in:
+
+- Development build
+- Android emulator
+- iOS simulator
+- Expo Go
+
+Edit files in the `app/` directory to start developing. The project uses [file-based routing](https://docs.expo.dev/router/introduction/).
+
+### Resetting the Project
+
+To reset the starter code:
 
 ```bash
 npm run reset-project
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+This moves starter code to `app-example/` and creates a blank `app/` directory.
 
-## Learn more
+## Project Structure
 
-To learn more about developing your project with Expo, look at the following resources:
+```
+app/           # Main app screens and navigation
+components/    # Reusable UI components
+constants/     # Theme and configuration
+contexts/      # React contexts
+hooks/         # Custom hooks
+services/      # API integrations
+assets/        # Images and static assets
+scripts/       # Utility scripts
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Documentation
 
-## Join the community
+- [Expo Documentation](https://docs.expo.dev/)
+- [React Native Docs](https://reactnative.dev/docs/getting-started)
+- [Expo Router](https://docs.expo.dev/router/introduction/)
 
-Join our community of developers creating universal apps.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+
+## License
+
+This project is licensed under the GPLv3 License. See the [LICENSE](LICENSE) file for details.
