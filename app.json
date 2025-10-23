@@ -18,6 +18,12 @@
         "googleMapsApiKey": "process.env.GOOGLE_MAPS_API_KEY"
       }
     },
+    "notification": {
+      "icon": "./assets/images/icon.png",
+      "color": "#6a99e3",
+      "sounds": ["default"],
+      "iosDisplayInForeground": true
+    },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",

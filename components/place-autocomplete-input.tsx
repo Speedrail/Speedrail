@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
   },
   predictionsContainer: {
     position: 'absolute',
-    top: 50,
+    bottom: 50,
     left: 0,
     right: 0,
     backgroundColor: '#fff',

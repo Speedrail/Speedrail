@@ -157,7 +157,7 @@ const NYC_FERRY_ALERTS = 'https://nycferry.connexionz.net/rtt/public/utility/gtf
 const NYC_FERRY_TRIP_UPDATES = 'https://nycferry.connexionz.net/rtt/public/utility/gtfsrealtime.aspx/tripupdate';
 const SIR_GTFS = 'https://rrgtfsfeeds.s3.amazonaws.com/gtfs_si.zip';
 
-let MTA_BUS_API_KEY = process.env.MTA_BUS_API_KEY || '';
+let MTA_BUS_API_KEY = process.env.EXPO_PUBLIC_MTA_BUS_API_KEY || '';
 
 interface CachedData<T> {
   data: T;

@@ -171,26 +171,6 @@ export default function LiveTrackingView({ route, onBack }: LiveTrackingViewProp
             />
           )}
         </MapView>
-
-        {nextTransit?.transit_details && (
-          <View style={styles.etaCard}>
-            <View style={styles.etaHeader}>
-              <Feather name="clock" size={18} color="#6a99e3" />
-              <Text style={styles.etaTitle}>Next Vehicle</Text>
-            </View>
-            <Text style={styles.etaLine}>
-              {nextTransit.transit_details?.line?.short_name ||
-                nextTransit.transit_details?.line?.name || 'Transit'}{' '}
-              - {nextTransit.transit_details?.headsign || 'Unknown direction'}
-            </Text>
-            <Text style={styles.etaTime}>
-              Departs at {nextTransit.transit_details?.departure_time?.text || 'Unknown time'}
-            </Text>
-            <Text style={styles.etaStop}>
-              From {nextTransit.transit_details?.departure_stop?.name || 'Unknown stop'}
-            </Text>
-          </View>
-        )}
       </View>
 
       <View style={styles.stepsContainer}>
@@ -223,6 +203,25 @@ export default function LiveTrackingView({ route, onBack }: LiveTrackingViewProp
             </View>
           ))}
         </ScrollView>
+        {nextTransit?.transit_details && (
+          <View style={styles.etaCard}>
+            <View style={styles.etaHeader}>
+              <Feather name="clock" size={18} color="#6a99e3" />
+              <Text style={styles.etaTitle}>Next Vehicle</Text>
+            </View>
+            <Text style={styles.etaLine}>
+              {nextTransit.transit_details?.line?.short_name ||
+                nextTransit.transit_details?.line?.name || 'Transit'}{' '}
+              - {nextTransit.transit_details?.headsign || 'Unknown direction'}
+            </Text>
+            <Text style={styles.etaTime}>
+              Departs at {nextTransit.transit_details?.departure_time?.text || 'Unknown time'}
+            </Text>
+            <Text style={styles.etaStop}>
+              From {nextTransit.transit_details?.departure_stop?.name || 'Unknown stop'}
+            </Text>
+          </View>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -259,6 +258,8 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+    borderColor: '#e5e7eb',
+    borderWidth: 0.5,
   },
   vehicleMarker: {
     width: 40,
@@ -279,10 +280,9 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   etaCard: {
-    position: 'absolute',
+    position: 'relative',
     bottom: 16,
-    left: 16,
-    right: 16,
+    justifyContent: 'center',
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,

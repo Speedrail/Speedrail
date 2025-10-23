@@ -3,6 +3,7 @@ import { useTabBar } from '@/contexts/tab-bar-context';
 import {
   fetchAllTransitStations,
   getDetailedStationInfo,
+  setBusApiKey,
   type BusStop,
   type DetailedStationInfo,
   type FerryStop,
@@ -138,6 +139,7 @@ export default function NavigationPage() {
   useEffect(() => {
     requestLocationPermission();
     loadTransitData();
+    setBusApiKey(process.env.EXPO_PUBLIC_MTA_BUS_API_KEY || '');
   }, []);
 
   const loadTransitData = useCallback(async () => {
@@ -245,7 +247,6 @@ export default function NavigationPage() {
 
   const filteredStations = useMemo(() => {
     const stations = allStations.filter(station => {
-
       const typeMatch = selectedFilter === 'all' || station.type === selectedFilter;
 
       if (!typeMatch) {
@@ -287,6 +288,7 @@ export default function NavigationPage() {
     { key: 'metro-north' as const, label: 'Metro-North', icon: 'train' },
     { key: 'ferry' as const, label: 'Ferry', icon: 'ferry' },
     { key: 'sir' as const, label: 'SIR', icon: 'train' },
+    { key: 'bus' as const, label: 'Bus', icon: 'bus' },
   ], []);
 
   const handleFilterChange = useCallback((key: TransitType | 'all') => {
@@ -395,7 +397,7 @@ export default function NavigationPage() {
               <View style={styles.distanceFilterContainer}>
                 <View style={styles.distanceHeader}>
                   <MaterialCommunityIcons name="map-marker-distance" size={20} color="#6a99e3" />
-                  <Text style={styles.distanceLabel}>Distance: {tempDistanceFilter.toFixed(1)} mi</Text>
+                  <Text style={styles.distanceLabel}>Distance: {tempDistanceFilter.toFixed(1)} miles</Text>
                 </View>
                 <Slider
                   style={styles.slider}
@@ -472,6 +474,10 @@ export default function NavigationPage() {
               <View style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: '#9C27B0' }]} />
                 <Text style={styles.legendText}>SIR</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: '#4CAF50' }]} />
+                <Text style={styles.legendText}>Bus</Text>
               </View>
             </View>
           </View>
