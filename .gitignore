@@ -3,20 +3,38 @@ node_modules/
 
 .expo/
 dist/
-web-build/
-
-*.orig.*
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
-
-
-.metro-health-check*
 
 
 npm-debug.*
+node_modules/
+dist/
+build/
+*.log
+*.tsbuildinfo
+.expo/
+.expo-shared/
+.vscode/
+coverage/
+web-build/
+android/
+ios/
+*.keystore
+*.jks
+*.p12
+*.pem
+*.key
+*.crt
+*.der
+*.sublime-workspace
+*.sublime-project
+*.idea/
+*.iml
+*.DS_Store
+*.env
+*.env.local
+*.env.development
+*.env.test
+*.env.production
 yarn-debug.*
 yarn-error.*
 
@@ -36,3 +54,4 @@ temp/
 /ios
 /android
 .env
+WARP.md
