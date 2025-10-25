@@ -61,7 +61,6 @@ const convertToTransitStation = (
   }));
 };
 
-const TRANSIT_STATIONS: TransitStation[] = [];
 
 const CustomMarker = React.memo(({ 
   station, 
@@ -112,7 +111,6 @@ CustomMarker.displayName = 'CustomMarker';
 export default function NavigationPage() {
   const { setTabBarVisible } = useTabBar();
   const mapRef = useRef<MapView>(null);
-  const markersRendered = useRef(false);
   const bottomSheetModalRef = useRef<BottomSheetModal>(null);
   const [initialRegion] = useState<Region>({
     latitude: 40.7580,
@@ -312,6 +310,17 @@ export default function NavigationPage() {
     }
   }, [setTabBarVisible]);
 
+  const markerPressHandlersRef = useRef<Map<string, () => void>>(new Map());
+  const getMarkerPressHandler = useCallback((station: TransitStation) => {
+    const map = markerPressHandlersRef.current;
+    let handler = map.get(station.id);
+    if (!handler) {
+      handler = () => handleMarkerPress(station);
+      map.set(station.id, handler);
+    }
+    return handler;
+  }, [handleMarkerPress]);
+
   const handleSheetDismiss = useCallback(() => {
     setTabBarVisible(true);
   }, [setTabBarVisible]);
@@ -438,17 +447,14 @@ export default function NavigationPage() {
                 rotateEnabled={false}
                 pitchEnabled={false}
                 maxZoomLevel={18}
-                minZoomLevel={8}
-                onRegionChangeComplete={() => {
-                  markersRendered.current = true;
-                }}>
+                minZoomLevel={8}>
                 {markerProps.map(({ station, markerColor, markerIcon }) => (
                   <CustomMarker
                     key={station.id}
                     station={station}
                     markerColor={markerColor}
                     markerIcon={markerIcon}
-                    onPress={() => handleMarkerPress(station)}
+                    onPress={getMarkerPressHandler(station)}
                   />
                 ))}
               </MapView>
