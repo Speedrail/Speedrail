@@ -10,6 +10,7 @@ import {
   type RailStation,
   type SubwayStation
 } from '@/services/mta-api';
+import Feather from '@expo/vector-icons/Feather';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import {
   BottomSheetBackdrop,
@@ -23,10 +24,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   FlatList,
+  Modal,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
@@ -109,6 +111,13 @@ const CustomMarker = React.memo(({
 CustomMarker.displayName = 'CustomMarker';
 
 export default function NavigationPage() {
+  const [showParameters, setShowParameters] = useState(false);
+  const [stopFilter, setStopFilter] = useState<string>('');
+  const [fareFilter, setFareFilter] = useState<number>(10);
+  const [accessibilityFilter, setAccessibilityFilter] = useState<'all' | 'wheelchair' | 'ada'>('all');
+  const [alertFilter, setAlertFilter] = useState<'all' | 'no-alerts' | 'has-alerts'>('all');
+  const [stationDetailsCache, setStationDetailsCache] = useState<Map<string, DetailedStationInfo>>(new Map());
+  const [loadingStationDetails, setLoadingStationDetails] = useState<Set<string>>(new Set());
   const { setTabBarVisible } = useTabBar();
   const mapRef = useRef<MapView>(null);
   const bottomSheetModalRef = useRef<BottomSheetModal>(null);
@@ -243,12 +252,92 @@ export default function NavigationPage() {
     return R * c;
   }, []);
 
+  const getStationDetails = useCallback(async (station: TransitStation): Promise<DetailedStationInfo | null> => {
+    const cacheKey = station.id;
+    
+    if (stationDetailsCache.has(cacheKey)) {
+      return stationDetailsCache.get(cacheKey)!;
+    }
+    
+    if (loadingStationDetails.has(cacheKey)) {
+      return null;
+    }
+    
+    try {
+      setLoadingStationDetails(prev => new Set(prev).add(cacheKey));
+      
+      const originalId = station.id.replace(`${station.type}-`, '');
+      const details = await getDetailedStationInfo(originalId, station.type);
+
+      if (details) {
+        setStationDetailsCache(prev => new Map(prev).set(cacheKey, details));
+        return details;
+      } else {
+        return null;
+      }
+    } catch (error) {
+      console.error('Error loading station details:', error);
+      return null;
+    } finally {
+      setLoadingStationDetails(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(cacheKey);
+        return newSet;
+      });
+    }
+  }, [stationDetailsCache, loadingStationDetails]);
+
   const filteredStations = useMemo(() => {
-    const stations = allStations.filter(station => {
+    const stations = allStations.filter((station) => {
+
       const typeMatch = selectedFilter === 'all' || station.type === selectedFilter;
 
       if (!typeMatch) {
         return false;
+      }
+
+      const nameMatch = !stopFilter || 
+        station.name.toLowerCase().includes(stopFilter.toLowerCase());
+      if (!nameMatch) {
+        return false;
+      }
+
+      const accessibilityMatch = accessibilityFilter === 'all' || 
+        (accessibilityFilter === 'wheelchair' && station.type === 'subway') || 
+        (accessibilityFilter === 'ada' && station.type === 'subway'); 
+      if (!accessibilityMatch) {
+        return false;
+      }
+
+      const alertMatch = alertFilter === 'all' || 
+        (alertFilter === 'no-alerts' && station.type !== 'subway') || 
+        (alertFilter === 'has-alerts' && station.type === 'subway'); 
+      if (!alertMatch) {
+        return false;
+      }
+
+      if (fareFilter > 0) {
+        const cachedDetails = stationDetailsCache.get(station.id);
+        
+        if (cachedDetails?.fares) {
+          const matchingFares = cachedDetails.fares.filter(fare => fare.price <= fareFilter);
+          return matchingFares.length > 0;
+        } else {
+          const getStationFareRange = (stationType: TransitType): { min: number; max: number } => {
+            switch (stationType) {
+              case 'subway': return { min: 2.75, max: 2.75 };
+              case 'bus': return { min: 2.75, max: 2.75 };
+              case 'lirr': return { min: 3.25, max: 15.00 };
+              case 'metro-north': return { min: 3.25, max: 20.00 };
+              case 'ferry': return { min: 0.00, max: 6.75 };
+              case 'sir': return { min: 2.75, max: 2.75 };
+              default: return { min: 0, max: 30 };
+            }
+          };
+          
+          const fareRange = getStationFareRange(station.type);
+          return fareFilter >= fareRange.min;
+        }
       }
 
       if (userLocation) {
@@ -269,7 +358,7 @@ export default function NavigationPage() {
     );
 
     return uniqueStations.slice(0, 500);
-  }, [selectedFilter, allStations, userLocation, distanceFilter, calculateDistance]);
+  }, [allStations, selectedFilter, stopFilter, accessibilityFilter, alertFilter, fareFilter, userLocation, stationDetailsCache, calculateDistance, distanceFilter]);
 
   const markerProps = useMemo(() => 
     filteredStations.map(station => ({
@@ -302,7 +391,14 @@ export default function NavigationPage() {
     try {
       const originalId = station.id.replace(`${station.type}-`, '');
       const info = await getDetailedStationInfo(originalId, station.type);
-      setStationInfo(info);
+      if (info) {
+        setStationDetailsCache(prev => {
+          const newCache = new Map(prev);
+          newCache.set(station.id, info);
+          return newCache;
+        });
+      }
+      setStationInfo(info || null);
     } catch (error) {
       console.error('Error loading station info:', error);
     } finally {
@@ -350,6 +446,20 @@ export default function NavigationPage() {
     }, 300); 
   }, []);
 
+  const handleFareChange = useCallback((value: number) => {
+    setFareFilter(value);
+  }, []);
+
+  const preloadStationDetails = useCallback(async (stations: TransitStation[]) => {
+    const stationsToLoad = stations
+      .filter(station => !stationDetailsCache.has(station.id) && !loadingStationDetails.has(station.id))
+      .slice(0, 10);
+    
+    if (stationsToLoad.length > 0) {
+      Promise.all(stationsToLoad.map(station => getStationDetails(station)));
+    }
+  }, [stationDetailsCache, loadingStationDetails, getStationDetails]);
+
   useEffect(() => {
     return () => {
       if (debounceTimerRef.current) {
@@ -357,6 +467,12 @@ export default function NavigationPage() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (filteredStations.length > 0) {
+      preloadStationDetails(filteredStations);
+    }
+  }, [filteredStations, preloadStationDetails]);
 
   const renderFilterItem = useCallback(({ item }: { item: typeof filterOptions[0] }) => (
     <TouchableOpacity
@@ -386,8 +502,15 @@ export default function NavigationPage() {
         <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#fff' }}>
           <View style={styles.container}>
             <View style={styles.header}>
-              <Text style={styles.title}>Navigation</Text>
-              <Text style={styles.subtitle}>Find nearby transit</Text>
+              <View>
+                <Text style={styles.title}>Navigation</Text>
+                <Text style={styles.subtitle}>Find nearby transit</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.parametersButton}
+                onPress={() => setShowParameters(true)}>
+                <Feather name="settings" size={24} color="#6a99e3" />
+              </TouchableOpacity>
             </View>
 
             <FlatList
@@ -502,6 +625,121 @@ export default function NavigationPage() {
             <StationDetail stationInfo={stationInfo} loading={stationLoading} />
           </BottomSheetScrollView>
         </BottomSheetModal>
+
+        <Modal
+          visible={showParameters}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowParameters(false)}>
+          <SafeAreaView style={{ flex: 1 }}>
+            <View style={styles.parametersContainer}>
+              <View style={styles.parametersHeader}>
+                <Text style={styles.parametersTitle}>Parameters</Text>
+                <TouchableOpacity
+                  style={styles.parametersCloseButton}
+                  onPress={() => setShowParameters(false)}>
+                  <Feather name="x" size={24} color="#6a99e3" />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.parametersContent}>
+                <Text style={styles.parametersStopFilter}>Stop Filter</Text>
+
+                <View style={styles.filterSection}>
+                  <Text style={styles.filterSectionTitle}>Accessibility</Text>
+                  <View style={styles.filterOptions}>
+                    {[
+                      { key: 'all', label: 'All Stations' },
+                      { key: 'wheelchair', label: 'Wheelchair Accessible' },
+                      { key: 'ada', label: 'ADA Compliant' }
+                    ].map((option) => (
+                      <TouchableOpacity
+                        key={option.key}
+                        activeOpacity={0.8}
+                        style={[
+                          styles.filterOption,
+                          accessibilityFilter === option.key && styles.filterOptionActive
+                        ]}
+                        onPress={() => setAccessibilityFilter(option.key as any)}>
+                        <View style={styles.filterOptionContent}>
+                          {(option.key === 'all') && <MaterialCommunityIcons name='all-inclusive' size={14} color={`${accessibilityFilter === option.key ? '#fff' : '#6a99e3'}`} />}
+                          {(option.key === 'wheelchair') && <MaterialCommunityIcons name='wheelchair-accessibility' size={14} color={`${accessibilityFilter === option.key ? '#fff' : '#6a99e3'}`} />}
+                          {(option.key === 'ada') && <MaterialCommunityIcons name='checkbox-marked-circle' size={14} color={`${accessibilityFilter === option.key ? '#fff' : '#6a99e3'}`} />}
+                          <Text style={[
+                            styles.filterOptionText,
+                            accessibilityFilter === option.key && styles.filterOptionTextActive
+                          ]}>
+                            {option.label}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                <View style={styles.filterSection}>
+                  <Text style={styles.filterSectionTitle}>Fare Cost Range</Text>
+                  <View style={styles.filterOptions}>
+                    <Slider
+                      style={styles.slider}
+                      minimumValue={0.0}
+                      maximumValue={30.0}
+                      step={0.5}
+                      value={fareFilter}
+                      onValueChange={handleFareChange}
+                      minimumTrackTintColor="#6a99e3"
+                      maximumTrackTintColor="#e8f0f9"
+                      thumbTintColor="#6a99e3"
+                    />
+                    <View style={styles.fareLabels}>
+                      <Text style={styles.fareMin}>$0.00</Text>
+                      <Text style={styles.fareMax}>$30.00</Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.filterSection}>
+                  <Text style={styles.filterSectionTitle}>Service Alerts</Text>
+                  <View style={styles.filterOptions}>
+                    {[
+                      { key: 'all', label: 'All Stations' },
+                      { key: 'no-alerts', label: 'No Alerts' },
+                      { key: 'has-alerts', label: 'Has Alerts' }
+                    ].map((option) => (
+                      <TouchableOpacity
+                        key={option.key}
+                        style={[
+                          styles.filterOption,
+                          alertFilter === option.key && styles.filterOptionActive
+                        ]}
+                        onPress={() => setAlertFilter(option.key as any)}>
+                        <View style={styles.filterOptionContent}>
+                          {(option.key === 'all') && <MaterialCommunityIcons name='all-inclusive' size={14} color={`${alertFilter === option.key ? '#fff' : '#6a99e3'}`} />}
+                          {(option.key === 'no-alerts') && <MaterialCommunityIcons name='check-circle' size={14} color={`${alertFilter === option.key ? '#fff' : '#6a99e3'}`} />}
+                          {(option.key === 'has-alerts') && <MaterialCommunityIcons name='alert-circle' size={14} color={`${alertFilter === option.key ? '#fff' : '#6a99e3'}`} />}
+                          <Text style={[
+                            styles.filterOptionText,
+                            alertFilter === option.key && styles.filterOptionTextActive
+                          ]}>
+                            {option.label}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                <View style={styles.filterSection}>
+                  <Text style={styles.filterSectionTitle}>Distance Range</Text>
+                  <View style={styles.distanceFilterInfo}>
+                    <Text style={styles.distanceFilterText}>
+                      Current: {distanceFilter.toFixed(1)} miles
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </SafeAreaView>
+        </Modal>
       </BottomSheetModalProvider>
     </GestureHandlerRootView>
   );
@@ -515,6 +753,9 @@ const styles = StyleSheet.create({
   header: {
     padding: 24,
     paddingBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   title: {
     fontSize: 27,
@@ -640,5 +881,133 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#222',
     fontWeight: '500',
+  },
+  parametersButton: {
+    marginLeft: 'auto',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    backgroundColor: '#e8f0f9',
+  },
+  btnText: {
+    fontSize: 17,
+    lineHeight: 24,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  parametersContainer: {
+    flex: 1,
+    padding: 24,
+  },
+  parametersTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#222',
+  },
+  parametersContent: {
+    flex: 1,
+    padding: 24,
+    backgroundColor: '#fff',
+  },
+  parametersHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    paddingBottom: 16,
+  },
+  parametersCloseButton: {
+    padding: 8,
+    marginLeft: 'auto',
+  },
+  parametersStopFilter: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#222',
+    marginBottom: 24,
+  },
+  filterSection: {
+    marginBottom: 24,
+  },
+  filterSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#222',
+    marginBottom: 12,
+  },
+  filterOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  filterOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#e8f0f9',
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  filterOptionActive: {
+    backgroundColor: '#6a99e3',
+    borderColor: '#6a99e3',
+  },
+  filterOptionText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6a99e3',
+  },
+  filterOptionTextActive: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  searchInput: {
+    borderWidth: 1,
+    borderColor: '#e8f0f9',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    backgroundColor: '#f8f9fa',
+    color: '#222',
+  },
+  distanceFilterInfo: {
+    padding: 16,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e8f0f9',
+  },
+  distanceFilterText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#222',
+    marginBottom: 4,
+  },
+  distanceFilterSubtext: {
+    fontSize: 14,
+    color: '#687076',
+  },
+  fareLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: -8,
+    width: '100%',
+  },
+  fareMin: {
+    fontSize: 11,
+    color: '#687076',
+  },
+  fareMax: {
+    fontSize: 11,
+    color: '#687076',
+  },
+  filterOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
 });
