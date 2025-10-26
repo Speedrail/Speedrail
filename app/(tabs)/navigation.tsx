@@ -314,8 +314,6 @@ export default function NavigationPage() {
               return cachedDetails.accessibility.ada;
             }
           }
-          
-          return station.type === 'subway';
         }
         return true;
       })();
@@ -324,9 +322,22 @@ export default function NavigationPage() {
         return false;
       }
 
-      const alertMatch = alertFilter === 'all' || 
-        (alertFilter === 'no-alerts' && station.type !== 'subway') || 
-        (alertFilter === 'has-alerts' && station.type === 'subway'); 
+      const alertMatch = alertFilter === 'all' || (() => {
+        if (alertFilter === 'has-alerts' || alertFilter === 'no-alerts') {
+          const cachedDetails = stationDetailsCache.get(station.id);
+          
+          if (cachedDetails?.accessibility) {
+            if (alertFilter === 'has-alerts') {
+              return cachedDetails.alerts && cachedDetails.alerts.length >= 1;
+            }
+            if (alertFilter === 'no-alerts') {
+              return cachedDetails.alerts && cachedDetails.alerts.length === 0;
+            }
+          }
+        }
+        return true;
+      })();
+
       if (!alertMatch) {
         return false;
       }
