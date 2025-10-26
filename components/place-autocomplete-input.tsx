@@ -3,11 +3,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
+  StyleProp,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
+  ViewStyle,
 } from 'react-native';
 import {
   GoogleMapsService,
@@ -29,6 +31,7 @@ interface PlaceAutocompleteInputProps {
   value: string;
   onPlaceSelected: (placeId: string, description: string, location: { lat: number; lng: number }) => void;
   onChangeText?: (text: string) => void;
+  containerStyle?: StyleProp<ViewStyle>;
 }
 
 export default function PlaceAutocompleteInput({
@@ -37,6 +40,7 @@ export default function PlaceAutocompleteInput({
   value,
   onPlaceSelected,
   onChangeText,
+  containerStyle,
 }: PlaceAutocompleteInputProps) {
   const [inputText, setInputText] = useState(value);
   const [predictions, setPredictions] = useState<PlaceAutocompleteResult[]>([]);
@@ -123,7 +127,7 @@ export default function PlaceAutocompleteInput({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, containerStyle]}>
       <View style={styles.inputWrapper}>
         <TextInput
           placeholder={placeholder}
@@ -219,7 +223,7 @@ const styles = StyleSheet.create({
   },
   predictionsContainer: {
     position: 'absolute',
-    bottom: 50,
+    top:50,
     left: 0,
     right: 0,
     backgroundColor: '#fff',
@@ -233,7 +237,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 5,
-    zIndex: 1000,
+    zIndex: 500,
   },
   predictionItem: {
     flexDirection: 'row',
