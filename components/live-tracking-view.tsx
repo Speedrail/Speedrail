@@ -6,6 +6,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Switch,
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,6 +24,7 @@ interface LiveTrackingViewProps {
 }
 
 export default function LiveTrackingView({ route, onBack }: LiveTrackingViewProps) {
+  const [oldAgeRoute, setOldAgeRoute] = useState<boolean>(false);
   const { selectedRoute, setSelectedRoute } = useSelectedRoute();
   const { setTabBarVisible } = useTabBar();
   const leg = route.legs?.[0];
@@ -200,7 +202,17 @@ export default function LiveTrackingView({ route, onBack }: LiveTrackingViewProp
       </View>
 
       <View style={styles.stepsContainer}>
-        <Text style={styles.stepsTitle}>Trip Steps</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', }}>
+          <Text style={styles.stepsTitle}>Trip Steps</Text>
+          <Text style={styles.oldAgeTitle}>Old Age:</Text>
+          <Switch
+            style={{ marginLeft: 'auto', marginBottom: 16 }}
+            value={oldAgeRoute}
+            onValueChange={setOldAgeRoute}
+            trackColor={{ true: '#6a99e3', false: '#cce6ff' }}
+            thumbColor={'#ffffff'}
+          />
+        </View>
         <ScrollView style={styles.stepsList}>
           {leg.steps.map((step, index) => (
             <View key={`step-${index}`} style={styles.stepItem}>
@@ -214,7 +226,8 @@ export default function LiveTrackingView({ route, onBack }: LiveTrackingViewProp
                 <Text style={styles.stepInstruction}>
                   {getStepInstructions(step)}
                 </Text>
-                <Text style={styles.stepDuration}>{step.duration?.text || 'Unknown duration'}</Text>
+                {/* old people walk about 40% slower than average */}
+                <Text style={styles.stepDuration}>{Math.round(step.duration?.value * (oldAgeRoute && getStepInstructions(step).includes('Walk') ? 1.4 : 1) / 60.0).toString() || 'Unknown duration'} minutes</Text>
                 {step.transit_details && (
                   <View style={styles.transitDetailsContainer}>
                     <Text style={styles.transitDetail}>
@@ -414,5 +427,13 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  oldAgeTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#222',
+    marginRight: -120,
+    marginBottom: 16,
+    marginLeft: 'auto',
   },
 });
