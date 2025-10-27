@@ -8,6 +8,7 @@ import {
   Modal,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TouchableOpacity,
   View,
@@ -22,12 +23,15 @@ import { GoogleMapsService, TransitRoute } from '../../services/google-maps-api'
 export default function HomePage() {
   const { selectedRoute, setSelectedRoute } = useSelectedRoute();
   const [localSelectedRoute, setLocalSelectedRoute] = useState<TransitRoute>();
+  const [oldAgeRoute, setOldAgeRoute] = useState<boolean>(false);
   const [startingPoint, setStartingPoint] = useState('');
   const [destination, setDestination] = useState('');
   const [startingLocation, setStartingLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [destinationLocation, setDestinationLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [currentLocation, setCurrentLocation] = useState<Location.LocationObject | null>(null);
   const [routes, setRoutes] = useState<TransitRoute[]>([]);
+  const [originalRoutes, setOriginalRoutes] = useState<TransitRoute[]>([]);
+  const [originalSelectedRoute, setOriginalSelectedRoute] = useState<TransitRoute | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [showNotificationMenu, setShowNotificationMenu] = useState(false);
@@ -35,6 +39,28 @@ export default function HomePage() {
   useEffect(() => {
     getCurrentLocation();
   }, []);
+
+  useEffect(() => {
+    if (selectedRoute && !originalSelectedRoute) {
+      setOriginalSelectedRoute(selectedRoute);
+    }
+  }, [selectedRoute]);
+
+  useEffect(() => {
+    if (originalRoutes.length > 0) {
+      const routesToDisplay = oldAgeRoute 
+        ? applyOldAgeAdjustment(originalRoutes)
+        : originalRoutes;
+      setRoutes(routesToDisplay);
+    }
+    
+    if (originalSelectedRoute) {
+      const routeToDisplay = oldAgeRoute 
+        ? applyOldAgeAdjustment([originalSelectedRoute])[0]
+        : originalSelectedRoute;
+      setSelectedRoute(routeToDisplay);
+    }
+  }, [oldAgeRoute]);
 
   const getCurrentLocation = async () => {
     setLoadingLocation(true);
@@ -81,6 +107,51 @@ export default function HomePage() {
     }
   };
 
+  const applyOldAgeAdjustment = (routes: TransitRoute[]) => {
+    return routes.map(route => {
+      const routeCopy = JSON.parse(JSON.stringify(route));
+      
+      if (routeCopy.legs && routeCopy.legs[0]) {
+        const leg = routeCopy.legs[0];
+        let totalWalkingTime = 0;
+        
+        leg.steps?.forEach((step: any) => {
+          if (step.travel_mode === 'WALKING' && step.duration) {
+            totalWalkingTime += step.duration.value;
+          }
+        });
+        
+        const additionalTime = totalWalkingTime * 0.4;
+        
+        if (leg.duration) {
+          leg.duration.value = Math.round(leg.duration.value + additionalTime);
+          const minutes = Math.round(leg.duration.value / 60);
+          const hours = Math.floor(minutes / 60);
+          const mins = minutes % 60;
+          
+          if (hours === 1 && mins > 0) {
+            leg.duration.text = `${hours} hour ${mins} mins`;
+          } else if (hours > 1) {
+            leg.duration.text = `${hours} hours ${mins} mins`;
+          } else if (mins > 0) {
+            leg.duration.text = `${mins} min`;
+          }
+        }
+        
+        if (leg.arrival_time) {
+          const newArrivalValue = leg.arrival_time.value + additionalTime;
+          leg.arrival_time.value = newArrivalValue;
+          const arrivalDate = new Date(newArrivalValue * 1000);
+          const hours = arrivalDate.getHours() % 12 || 12;
+          const minutes = arrivalDate.getMinutes();
+          const ampm = arrivalDate.getHours() >= 12 ? 'PM' : 'AM';
+          leg.arrival_time.text = `${hours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+        }
+      }
+      return routeCopy;
+    });
+  };
+
   const handleFindRoute = async () => {
     console.log('Starting location:', startingLocation);
     console.log('Destination location:', destinationLocation);
@@ -101,8 +172,15 @@ export default function HomePage() {
       );
 
       if (directionsResponse && directionsResponse.routes.length > 0) {
-        const limitedRoutes = directionsResponse.routes.slice(0, 5);
-        setRoutes(limitedRoutes);
+        let limitedRoutes = directionsResponse.routes.slice(0, 5);
+        
+        setOriginalRoutes(limitedRoutes);
+        
+        const routesToDisplay = oldAgeRoute 
+          ? applyOldAgeAdjustment(limitedRoutes)
+          : limitedRoutes;
+        
+        setRoutes(routesToDisplay);
       } else {
         Alert.alert('No Routes Found', 'No public transit routes available for this destination');
         setRoutes([]);
@@ -116,6 +194,11 @@ export default function HomePage() {
   };
 
   const handleRouteSelect = (route: TransitRoute) => {
+    const originalRoute = originalRoutes.find(r => r.summary === route.summary);
+    if (originalRoute) {
+      setOriginalSelectedRoute(originalRoute);
+      setSelectedRoute(route);
+    }
     setLocalSelectedRoute(route);
   };
 
@@ -124,7 +207,7 @@ export default function HomePage() {
   };
 
   if (localSelectedRoute) {
-    return <LiveTrackingView route={localSelectedRoute!} onBack={handleBackFromTracking} />;
+    return <LiveTrackingView route={localSelectedRoute!} onBack={handleBackFromTracking} oldAgeRoute={oldAgeRoute} />;
   }
 
   return (
@@ -186,6 +269,18 @@ export default function HomePage() {
                 onChangeText={(text) => {
                   setDestination(text);
                 }}
+              />
+            </View>
+
+            <View style={styles.oldAgeContainer}>
+              <Text style={styles.oldAgeTitle}>Age-Dependent Transportation:</Text>
+              <Switch
+                style={{ marginLeft: 'auto' }}
+                value={oldAgeRoute}
+                onValueChange={() => setOldAgeRoute(!oldAgeRoute)}
+                trackColor={{ true: '#6a99e3', false: '#9ca3af' }}
+                thumbColor={'#ffffff'}
+                ios_backgroundColor={'#9ca3af'}
               />
             </View>
 
@@ -398,5 +493,18 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     textAlign: 'center',
     marginTop: 16,
+  },
+  oldAgeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  oldAgeTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#222',
+    marginRight: 'auto',
+    marginLeft: 8,
   },
 });

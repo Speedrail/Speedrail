@@ -21,10 +21,10 @@ export function SelectedRoute() {
 interface LiveTrackingViewProps {
   route: TransitRoute;
   onBack: () => void;
+  oldAgeRoute: boolean;
 }
 
-export default function LiveTrackingView({ route, onBack }: LiveTrackingViewProps) {
-  const [oldAgeRoute, setOldAgeRoute] = useState<boolean>(false);
+export default function LiveTrackingView({ route, onBack, oldAgeRoute }: LiveTrackingViewProps) {
   const { selectedRoute, setSelectedRoute } = useSelectedRoute();
   const { setTabBarVisible } = useTabBar();
   const leg = route.legs?.[0];
@@ -204,14 +204,6 @@ export default function LiveTrackingView({ route, onBack }: LiveTrackingViewProp
       <View style={styles.stepsContainer}>
         <View style={{ flexDirection: 'row', alignItems: 'center', }}>
           <Text style={styles.stepsTitle}>Trip Steps</Text>
-          <Text style={styles.oldAgeTitle}>Old Age:</Text>
-          <Switch
-            style={{ marginLeft: 'auto', marginBottom: 16 }}
-            value={oldAgeRoute}
-            onValueChange={setOldAgeRoute}
-            trackColor={{ true: '#6a99e3', false: '#cce6ff' }}
-            thumbColor={'#ffffff'}
-          />
         </View>
         <ScrollView style={styles.stepsList}>
           {leg.steps.map((step, index) => (
