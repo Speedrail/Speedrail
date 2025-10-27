@@ -154,6 +154,7 @@ export default function HomePage() {
                   onChangeText={(text) => {
                     setStartingPoint(text);
                   }}
+                  containerStyle={{ position: 'relative', zIndex: 1000 }}
                 />
                 {loadingLocation && (
                   <View style={styles.locationLoadingOverlay}>

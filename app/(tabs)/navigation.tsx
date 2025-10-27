@@ -302,16 +302,42 @@ export default function NavigationPage() {
         return false;
       }
 
-      const accessibilityMatch = accessibilityFilter === 'all' || 
-        (accessibilityFilter === 'wheelchair' && station.type === 'subway') || 
-        (accessibilityFilter === 'ada' && station.type === 'subway'); 
+      const accessibilityMatch = accessibilityFilter === 'all' || (() => {
+        if (accessibilityFilter === 'wheelchair' || accessibilityFilter === 'ada') {
+          const cachedDetails = stationDetailsCache.get(station.id);
+          
+          if (cachedDetails?.accessibility) {
+            if (accessibilityFilter === 'wheelchair') {
+              return cachedDetails.accessibility.wheelchairAccessible;
+            }
+            if (accessibilityFilter === 'ada') {
+              return cachedDetails.accessibility.ada;
+            }
+          }
+        }
+        return true;
+      })();
+
       if (!accessibilityMatch) {
         return false;
       }
 
-      const alertMatch = alertFilter === 'all' || 
-        (alertFilter === 'no-alerts' && station.type !== 'subway') || 
-        (alertFilter === 'has-alerts' && station.type === 'subway'); 
+      const alertMatch = alertFilter === 'all' || (() => {
+        if (alertFilter === 'has-alerts' || alertFilter === 'no-alerts') {
+          const cachedDetails = stationDetailsCache.get(station.id);
+          
+          if (cachedDetails?.accessibility) {
+            if (alertFilter === 'has-alerts') {
+              return cachedDetails.alerts && cachedDetails.alerts.length >= 1;
+            }
+            if (alertFilter === 'no-alerts') {
+              return cachedDetails.alerts && cachedDetails.alerts.length === 0;
+            }
+          }
+        }
+        return true;
+      })();
+
       if (!alertMatch) {
         return false;
       }
@@ -320,24 +346,10 @@ export default function NavigationPage() {
         const cachedDetails = stationDetailsCache.get(station.id);
         
         if (cachedDetails?.fares) {
-          const matchingFares = cachedDetails.fares.filter(fare => fare.price <= fareFilter);
-          return matchingFares.length > 0;
-        } else {
-          const getStationFareRange = (stationType: TransitType): { min: number; max: number } => {
-            switch (stationType) {
-              case 'subway': return { min: 2.75, max: 2.75 };
-              case 'bus': return { min: 2.75, max: 2.75 };
-              case 'lirr': return { min: 3.25, max: 15.00 };
-              case 'metro-north': return { min: 3.25, max: 20.00 };
-              case 'ferry': return { min: 0.00, max: 6.75 };
-              case 'sir': return { min: 2.75, max: 2.75 };
-              default: return { min: 0, max: 30 };
-            }
-          };
-          
-          const fareRange = getStationFareRange(station.type);
-          return fareFilter >= fareRange.min;
+          return cachedDetails.fares.some(fare => fare.price <= fareFilter);
         }
+
+        return false;
       }
 
       if (userLocation) {
@@ -677,7 +689,7 @@ export default function NavigationPage() {
                 </View>
 
                 <View style={styles.filterSection}>
-                  <Text style={styles.filterSectionTitle}>Fare Cost Range</Text>
+                  <Text style={styles.filterSectionTitle}>Fare Cost Range: ${fareFilter.toFixed(2)}</Text>
                   <View style={styles.filterOptions}>
                     <Slider
                       style={styles.slider}
