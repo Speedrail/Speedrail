@@ -59,6 +59,11 @@ export default function LiveTrackingView({ route, onBack }: LiveTrackingViewProp
     setRouteCoordinates(decodedRoute);
   }, [route]);
 
+  const handleCancelRoute = () => {
+    setSelectedRoute(null);
+    onBack();
+  };
+
   const handleSelectRoute = () => {
     setSelectedRoute(route);
     onBack();
@@ -131,13 +136,13 @@ export default function LiveTrackingView({ route, onBack }: LiveTrackingViewProp
       </View>
 
       <View style={styles.mapContainer}>
-        {selectedRoute && (
+        {!selectedRoute && (
           <TouchableOpacity style={styles.selectRouteButton} onPress={handleSelectRoute}>
             <Text style={styles.selectRouteButtonText}>Select Route</Text>
           </TouchableOpacity>
         )}
-        {!selectedRoute && (
-          <TouchableOpacity style={styles.selectRouteButton} onPress={handleSelectRoute}>
+        {selectedRoute && route === selectedRoute && (
+          <TouchableOpacity style={styles.selectRouteButton} onPress={handleCancelRoute}>
             <Text style={styles.selectRouteButtonText}>Cancel Route</Text>
           </TouchableOpacity>
         )}
