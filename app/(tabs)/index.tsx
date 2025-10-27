@@ -1,3 +1,4 @@
+import { useSelectedRoute } from '@/contexts/selected-route-context';
 import Feather from '@expo/vector-icons/Feather';
 import * as Location from 'expo-location';
 import React, { useEffect, useState } from 'react';
@@ -13,19 +14,20 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LiveTrackingView from '../../components/live-tracking-view';
+import NotificationMenu from '../../components/notification-menu';
 import PlaceAutocompleteInput from '../../components/place-autocomplete-input';
 import RouteOption from '../../components/route-option';
 import { GoogleMapsService, TransitRoute } from '../../services/google-maps-api';
-import NotificationMenu from '../../components/notification-menu';
 
 export default function HomePage() {
+  const { selectedRoute, setSelectedRoute } = useSelectedRoute();
+  const [localSelectedRoute, setLocalSelectedRoute] = useState<TransitRoute>();
   const [startingPoint, setStartingPoint] = useState('');
   const [destination, setDestination] = useState('');
   const [startingLocation, setStartingLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [destinationLocation, setDestinationLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [currentLocation, setCurrentLocation] = useState<Location.LocationObject | null>(null);
   const [routes, setRoutes] = useState<TransitRoute[]>([]);
-  const [selectedRoute, setSelectedRoute] = useState<TransitRoute | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [showNotificationMenu, setShowNotificationMenu] = useState(false);
@@ -114,15 +116,15 @@ export default function HomePage() {
   };
 
   const handleRouteSelect = (route: TransitRoute) => {
-    setSelectedRoute(route);
+    setLocalSelectedRoute(route);
   };
 
   const handleBackFromTracking = () => {
-    setSelectedRoute(null);
+    setLocalSelectedRoute(undefined);
   };
 
-  if (selectedRoute) {
-    return <LiveTrackingView route={selectedRoute} onBack={handleBackFromTracking} />;
+  if (localSelectedRoute) {
+    return <LiveTrackingView route={localSelectedRoute!} onBack={handleBackFromTracking} />;
   }
 
   return (
@@ -213,6 +215,17 @@ export default function HomePage() {
             )}
           </View>
         </View>
+
+        {selectedRoute && (
+          <View style={styles.routesContainer}>
+            <Text style={styles.routesTitle}>Selected Route</Text>
+            <RouteOption 
+              route={selectedRoute}
+              routeNumber={1}
+              onSelect={() => handleRouteSelect(selectedRoute)}
+            />
+          </View>
+        )}
 
         {routes.length > 0 && (
           <View style={styles.routesContainer}>

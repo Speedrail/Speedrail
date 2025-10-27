@@ -314,6 +314,7 @@ export default function NavigationPage() {
               return cachedDetails.accessibility.ada;
             }
           }
+          return false;
         }
         return true;
       })();
@@ -326,14 +327,15 @@ export default function NavigationPage() {
         if (alertFilter === 'has-alerts' || alertFilter === 'no-alerts') {
           const cachedDetails = stationDetailsCache.get(station.id);
           
-          if (cachedDetails?.accessibility) {
+          if (cachedDetails?.alerts !== undefined) {
             if (alertFilter === 'has-alerts') {
-              return cachedDetails.alerts && cachedDetails.alerts.length >= 1;
+              return cachedDetails.alerts.length >= 1;
             }
             if (alertFilter === 'no-alerts') {
-              return cachedDetails.alerts && cachedDetails.alerts.length === 0;
+              return cachedDetails.alerts.length === 0;
             }
           }
+          return false;
         }
         return true;
       })();

@@ -294,11 +294,6 @@ export default function NotificationMenu() {
           )}
         </View>
         <View style={styles.headerButtons}>
-          <TouchableOpacity
-            style={styles.testButton}
-            onPress={schedulePushNotification}>
-            <Feather name="plus-circle" size={20} color="#6a99e3" />
-          </TouchableOpacity>
           {notifications.length > 0 && (
             <TouchableOpacity
               style={styles.clearButton}
@@ -316,12 +311,6 @@ export default function NotificationMenu() {
           <Text style={styles.emptySubtitle}>
             You&apos;ll be notified about service changes and updates
           </Text>
-          <TouchableOpacity
-            style={styles.testNotificationButton}
-            onPress={schedulePushNotification}>
-            <Feather name="bell" size={18} color="#fff" />
-            <Text style={styles.testNotificationText}>Send Test Notification</Text>
-          </TouchableOpacity>
         </View>
       ) : (
         <FlatList

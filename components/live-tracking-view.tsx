@@ -9,8 +9,13 @@ import {
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSelectedRoute } from '../contexts/selected-route-context';
 import { useTabBar } from '../contexts/tab-bar-context';
 import { GoogleMapsService, RouteStep, TransitRoute } from '../services/google-maps-api';
+
+export function SelectedRoute() {
+  
+}
 
 interface LiveTrackingViewProps {
   route: TransitRoute;
@@ -18,6 +23,7 @@ interface LiveTrackingViewProps {
 }
 
 export default function LiveTrackingView({ route, onBack }: LiveTrackingViewProps) {
+  const { selectedRoute, setSelectedRoute } = useSelectedRoute();
   const { setTabBarVisible } = useTabBar();
   const leg = route.legs?.[0];
   const [region, setRegion] = useState({
@@ -27,7 +33,7 @@ export default function LiveTrackingView({ route, onBack }: LiveTrackingViewProp
     longitudeDelta: 0.05,
   });
   const [routeCoordinates, setRouteCoordinates] = useState<
-    Array<{ latitude: number; longitude: number }>
+    { latitude: number; longitude: number }[]
   >([]);
 
   useEffect(() => {
@@ -52,6 +58,11 @@ export default function LiveTrackingView({ route, onBack }: LiveTrackingViewProp
     );
     setRouteCoordinates(decodedRoute);
   }, [route]);
+
+  const handleSelectRoute = () => {
+    setSelectedRoute(route);
+    onBack();
+  };
 
   const renderStepIcon = (step: RouteStep) => {
     if (step.travel_mode === 'WALKING') {
@@ -120,6 +131,16 @@ export default function LiveTrackingView({ route, onBack }: LiveTrackingViewProp
       </View>
 
       <View style={styles.mapContainer}>
+        {selectedRoute && (
+          <TouchableOpacity style={styles.selectRouteButton} onPress={handleSelectRoute}>
+            <Text style={styles.selectRouteButtonText}>Select Route</Text>
+          </TouchableOpacity>
+        )}
+        {!selectedRoute && (
+          <TouchableOpacity style={styles.selectRouteButton} onPress={handleSelectRoute}>
+            <Text style={styles.selectRouteButtonText}>Cancel Route</Text>
+          </TouchableOpacity>
+        )}
         <MapView
           provider={PROVIDER_GOOGLE}
           style={styles.map}
@@ -135,7 +156,7 @@ export default function LiveTrackingView({ route, onBack }: LiveTrackingViewProp
             }}
             title="Start"
             description="Starting location"
-            pinColor="green"
+            pinColor="white"
           />
 
           <Marker
@@ -372,5 +393,21 @@ const styles = StyleSheet.create({
   transitDetail: {
     fontSize: 12,
     color: '#9ca3af',
+  },
+  selectRouteButton: {
+    backgroundColor: '#6a99e3',
+    width: 'auto',
+    padding: 12,
+    borderRadius: 8,
+    top: 10,
+    left: 16,
+    right: 16,
+    position: 'absolute',
+    zIndex: 1000,
+  },
+  selectRouteButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });
