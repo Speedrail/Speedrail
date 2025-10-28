@@ -3,6 +3,7 @@ import StationDetail from '@/components/station-detail';
 import { useTabBar } from '@/contexts/tab-bar-context';
 import {
   fetchAllTransitStations,
+  fetchBusStops,
   getDetailedStationInfo,
   setBusApiKey,
   type BusStop,
@@ -145,8 +146,6 @@ export default function NavigationPage() {
   const snapPoints = useMemo(() => ['60%', '90%'], []);
 
   useEffect(() => {
-    requestLocationPermission();
-    loadTransitData();
     setBusApiKey(process.env.EXPO_PUBLIC_MTA_BUS_API_KEY || '');
   }, []);
 
@@ -163,13 +162,27 @@ export default function NavigationPage() {
         ...convertToTransitStation(data.ferry, 'ferry'),
       ];
 
+      if (userLocation) {
+        const busStops = await fetchBusStops(userLocation.latitude, userLocation.longitude, 8000);
+        const busStations = convertToTransitStation(busStops, 'bus');
+        stations.push(...busStations);
+      }
+
       setAllStations(stations);
     } catch (error) {
       console.error('Error loading transit data:', error);
     } finally {
       setDataLoading(false);
     }
+  }, [userLocation]);
+
+  useEffect(() => {
+    requestLocationPermission();
   }, []);
+
+  useEffect(() => {
+    loadTransitData();
+  }, [loadTransitData]);
 
   const requestLocationPermission = useCallback(async () => {
     try {

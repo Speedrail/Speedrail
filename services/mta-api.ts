@@ -172,7 +172,10 @@ const stationCache = {
   subway: null as CachedData<SubwayStation[]> | null,
   sir: null as CachedData<RailStation[]> | null,
   ferry: null as CachedData<FerryStop[]> | null,
+  bus: null as CachedData<BusStop[]> | null,
 };
+
+const busStopsCache = new Map<string, BusStop>();
 
 interface EquipmentData {
   [stationComplexId: string]: {
@@ -187,7 +190,7 @@ let equipmentCache: CachedData<EquipmentData> | null = null;
 const addressCache = new Map<string, { address: string | undefined; timestamp: number }>();
 const ADDRESS_CACHE_DURATION = 7 * 24 * 60 * 60 * 1000;
 let lastAddressRequestTime = 0;
-const ADDRESS_REQUEST_DELAY = 1000;
+const ADDRESS_REQUEST_DELAY = 2000;
 
 export function setBusApiKey(key: string) {
   MTA_BUS_API_KEY = key;
@@ -583,38 +586,106 @@ export async function fetchSubwayStations(): Promise<SubwayStation[]> {
 
 export async function fetchBusStops(latitude?: number, longitude?: number, radius?: number): Promise<BusStop[]> {
   try {
-    if (!MTA_BUS_API_KEY) {
-      console.warn('MTA Bus API key not set. Call setBusApiKey() first.');
-      return [];
-    }
-
-    let url = `${BUS_TIME_API}/stops-for-location.json?key=${MTA_BUS_API_KEY}`;
-    
-    if (latitude && longitude) {
-      url += `&lat=${latitude}&lon=${longitude}`;
-      if (radius) {
-        url += `&radius=${radius}`;
+    if (stationCache.bus) {
+      const age = Date.now() - stationCache.bus.timestamp;
+      if (age < CACHE_DURATION) {
+        const allBusStops = stationCache.bus.data;
+        
+        if (latitude && longitude && radius) {
+          const radiusInMeters = radius;
+          return allBusStops.filter(stop => {
+            const distance = haversineDistance(latitude, longitude, stop.latitude, stop.longitude);
+            return distance <= radiusInMeters;
+          });
+        }
+        
+        return allBusStops.slice(0, 1000);
       }
     }
 
-    const response = await fetch(url);
-    const data = await response.json();
+    console.log('Fetching MTA bus stops from NYC Open Data...');
     
-    if (data.Siri?.ServiceDelivery?.StopPointsDelivery?.[0]?.AnnotatedStopPointRef) {
-      return data.Siri.ServiceDelivery.StopPointsDelivery[0].AnnotatedStopPointRef.map((stop: any) => ({
-        id: stop.StopPointRef,
-        name: stop.StopName,
-        routes: stop.Lines?.LineRef || [],
-        latitude: parseFloat(stop.Location?.Latitude),
-        longitude: parseFloat(stop.Location?.Longitude),
-      }));
+    const response = await fetch('https://data.ny.gov/resource/pvub-uz38.json?$limit=50000');
+    
+    if (!response.ok) {
+      console.error(`Failed to fetch bus stops: ${response.status}`);
+      return [];
+    }
+    
+    const data = await response.json();
+    const busStops: BusStop[] = [];
+    
+    for (const stop of data) {
+      if (stop.latitude && stop.longitude && stop.stop_name) {
+        const lat = parseFloat(stop.latitude);
+        const lon = parseFloat(stop.longitude);
+        
+        if (!isNaN(lat) && !isNaN(lon)) {
+          const busStop: BusStop = {
+            id: stop.stop_id || `bus-${stop.stop_code || busStops.length}`,
+            name: stop.stop_name,
+            routes: [],
+            latitude: lat,
+            longitude: lon,
+            wheelchairBoarding: 1,
+          };
+          
+          busStops.push(busStop);
+          busStopsCache.set(busStop.id, busStop);
+        }
+      }
+    }
+    
+    stationCache.bus = {
+      data: busStops,
+      timestamp: Date.now(),
+    };
+    
+    console.log(`Fetched ${busStops.length} bus stops from NYC Open Data`);
+    
+    if (latitude && longitude && radius) {
+      const radiusInMeters = radius;
+      return busStops.filter(stop => {
+        const distance = haversineDistance(latitude, longitude, stop.latitude, stop.longitude);
+        return distance <= radiusInMeters;
+      });
+    }
+    
+    return busStops.slice(0, 1000);
+  } catch (error) {
+    console.error('Error fetching bus stops:', error);
+    
+    if (stationCache.bus) {
+      const allBusStops = stationCache.bus.data;
+      
+      if (latitude && longitude && radius) {
+        const radiusInMeters = radius;
+        return allBusStops.filter(stop => {
+          const distance = haversineDistance(latitude, longitude, stop.latitude, stop.longitude);
+          return distance <= radiusInMeters;
+        });
+      }
+      
+      return allBusStops.slice(0, 1000);
     }
     
     return [];
-  } catch (error) {
-    console.error('Error fetching bus stops:', error);
-    return [];
   }
+}
+
+function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371e3;
+  const φ1 = lat1 * Math.PI / 180;
+  const φ2 = lat2 * Math.PI / 180;
+  const Δφ = (lat2 - lat1) * Math.PI / 180;
+  const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+  const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return R * c;
 }
 
 async function parseGTFSStops(zipUrl: string, type: 'lirr' | 'metro-north' | 'sir'): Promise<RailStation[]> {
@@ -1100,21 +1171,6 @@ export async function searchNearbyTransit(latitude: number, longitude: number, r
     fetchBusStops(latitude, longitude, radiusMeters),
   ]);
   
-  const haversineDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371e3;
-    const φ1 = lat1 * Math.PI / 180;
-    const φ2 = lat2 * Math.PI / 180;
-    const Δφ = (lat2 - lat1) * Math.PI / 180;
-    const Δλ = (lon2 - lon1) * Math.PI / 180;
-
-    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-              Math.cos(φ1) * Math.cos(φ2) *
-              Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return R * c;
-  };
-  
   const nearbySubway = stations.subway.filter(s => 
     haversineDistance(latitude, longitude, s.latitude, s.longitude) <= radiusMeters
   );
@@ -1148,7 +1204,7 @@ export async function searchNearbyTransit(latitude: number, longitude: number, r
 export async function getDetailedStationInfo(
   stationId: string,
   type: 'subway' | 'bus' | 'lirr' | 'metro-north' | 'ferry' | 'sir',
-  includeAddress: boolean = false
+  includeAddress: boolean = true
 ): Promise<DetailedStationInfo | null> {
   try {
     let baseStation: any = null;
@@ -1190,7 +1246,10 @@ export async function getDetailedStationInfo(
         borough = baseStation.borough;
       }
     } else if (type === 'bus') {
-      return null;
+      baseStation = busStopsCache.get(stationId);
+      if (baseStation) {
+        routes = baseStation.routes || [];
+      }
     }
 
     if (!baseStation) {
@@ -1275,6 +1334,12 @@ async function getStationAccessibility(
     ada = baseStation.wheelchairAccessible === true;
     elevatorsAvailable = false;
     escalatorsAvailable = false;
+  } else if (type === 'bus' && baseStation) {
+    wheelchairAccessible = baseStation.wheelchairBoarding === 1 || baseStation.wheelchairBoarding === undefined;
+    ada = wheelchairAccessible;
+    elevatorsAvailable = false;
+    escalatorsAvailable = false;
+    notes = 'Most MTA buses are wheelchair accessible';
   } else {
     notes = 'Accessibility information not available';
   }
