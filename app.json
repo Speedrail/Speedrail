@@ -21,7 +21,6 @@
     "notification": {
       "icon": "./assets/images/icon.png",
       "color": "#6a99e3",
-      "sounds": ["default"],
       "iosDisplayInForeground": true
     },
     "android": {
