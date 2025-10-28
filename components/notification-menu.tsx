@@ -21,6 +21,7 @@ import {
   View,
 } from 'react-native';
 import { GoogleMapsService, TransitRoute } from '../services/google-maps-api';
+import { fetchServiceAlerts, ServiceAlert } from '../services/mta-api';
 import PlaceAutocompleteInput from './place-autocomplete-input';
 
 interface NotificationItem {
@@ -71,13 +72,20 @@ export default function NotificationMenu() {
   const [showRouteModal, setShowRouteModal] = useState(false);
   const [editingRoute, setEditingRoute] = useState<DailyRoute | null>(null);
   const [activeTab, setActiveTab] = useState<'notifications' | 'routes'>('notifications');
+  const [loadingAlerts, setLoadingAlerts] = useState(false);
 
   useEffect(() => {
     registerForPushNotificationsAsync().then((token: string | undefined) => token && setExpoPushToken(token));
     requestNotificationPermissions();
-    loadSampleNotifications();
+    loadRealTransitAlerts();
     loadDailyRoutes();
     setupNotificationListener();
+
+    const alertInterval = setInterval(() => {
+      loadRealTransitAlerts();
+    }, 120000);
+
+    return () => clearInterval(alertInterval);
   }, []);
 
   useEffect(() => {
@@ -97,12 +105,12 @@ export default function NotificationMenu() {
     try {
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
-      
+
       if (existingStatus !== 'granted') {
         const { status } = await Notifications.requestPermissionsAsync();
         finalStatus = status;
       }
-      
+
       if (finalStatus !== 'granted') {
         Alert.alert('Permission Required', 'Please enable notifications to receive transit alerts');
         return;
@@ -249,14 +257,14 @@ export default function NotificationMenu() {
   const addOrUpdateRoute = async (route: DailyRoute) => {
     const existingIndex = dailyRoutes.findIndex(r => r.id === route.id);
     let updatedRoutes;
-    
+
     if (existingIndex >= 0) {
       updatedRoutes = [...dailyRoutes];
       updatedRoutes[existingIndex] = route;
     } else {
       updatedRoutes = [...dailyRoutes, route];
     }
-    
+
     await saveDailyRoutes(updatedRoutes);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
@@ -302,35 +310,58 @@ export default function NotificationMenu() {
     setNotifications(prev => [newNotification, ...prev]);
   };
 
-  const loadSampleNotifications = () => {
-    const samples: NotificationItem[] = [
-      {
-        id: '1',
-        title: 'Service Change',
-        message: 'The 1 train is experiencing delays due to signal problems',
-        timestamp: new Date(Date.now() - 5 * 60000),
-        type: 'delay',
-        read: false,
-        routeInfo: '1 Train',
-      },
-      {
-        id: '2',
-        title: 'Route Update',
-        message: 'Your saved route has a faster option available',
-        timestamp: new Date(Date.now() - 30 * 60000),
-        type: 'update',
-        read: false,
-      },
-      {
-        id: '3',
-        title: 'Service Alert',
-        message: 'Weekend service changes on the L line',
-        timestamp: new Date(Date.now() - 2 * 60 * 60000),
-        type: 'alert',
-        read: true,
-      },
-    ];
-    setNotifications(samples);
+  const loadRealTransitAlerts = async () => {
+    if (loadingAlerts) return;
+
+    setLoadingAlerts(true);
+    try {
+
+      const alerts = await fetchServiceAlerts();
+
+      const notificationItems: NotificationItem[] = alerts.map((alert: ServiceAlert) => {
+
+        let type: NotificationItem['type'] = 'info';
+        if (alert.severity === 'critical') {
+          type = 'alert';
+        } else if (alert.severity === 'warning') {
+          type = 'delay';
+        }
+
+        const routeInfo = alert.affectedRoutes.length > 0 
+          ? alert.affectedRoutes.join(', ') 
+          : undefined;
+
+        return {
+          id: alert.id,
+          title: alert.header,
+          message: alert.description || alert.header,
+          timestamp: new Date(alert.activePeriod.start),
+          type,
+          read: false,
+          routeInfo,
+        };
+      });
+
+      notificationItems.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+      setNotifications(prev => {
+        const existingIds = new Set(prev.map(n => n.id));
+        const newNotifications = notificationItems.filter(n => !existingIds.has(n.id));
+
+        const updated = prev.map(existing => {
+          const fresh = notificationItems.find(n => n.id === existing.id);
+          return fresh ? { ...fresh, read: existing.read } : existing;
+        });
+
+        return [...newNotifications, ...updated];
+      });
+
+      console.log(`Loaded ${notificationItems.length} transit alerts from MTA`);
+    } catch (error) {
+      console.error('Error loading transit alerts:', error);
+    } finally {
+      setLoadingAlerts(false);
+    }
   };
 
   const markAsRead = (id: string) => {
@@ -381,7 +412,7 @@ export default function NotificationMenu() {
 
   async function registerForPushNotificationsAsync() {
     let token;
-  
+
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('myNotificationChannel', {
         name: 'A channel is needed for the permissions prompt to appear',
@@ -390,7 +421,7 @@ export default function NotificationMenu() {
         lightColor: '#FF231F7C',
       });
     }
-  
+
     if (Device.isDevice) {
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
@@ -402,7 +433,7 @@ export default function NotificationMenu() {
         alert('Failed to get push token for push notification!');
         return;
       }
-      
+
       try {
         const projectId =
           Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
@@ -421,7 +452,7 @@ export default function NotificationMenu() {
     } else {
       alert('Must use physical device for Push Notifications');
     }
-  
+
     return token;
   }
 
@@ -476,7 +507,7 @@ export default function NotificationMenu() {
         <View style={[styles.iconContainer, { backgroundColor: getColorForType(item.type) }]}>
           <Feather name={getIconForType(item.type)} size={20} color="#fff" />
         </View>
-        
+
         <View style={styles.textContainer}>
           <View style={styles.headerRow}>
             <Text style={styles.notificationTitle}>{item.title}</Text>
@@ -580,12 +611,26 @@ export default function NotificationMenu() {
           )}
         </View>
         <View style={styles.headerButtons}>
-          {activeTab === 'notifications' && notifications.length > 0 && (
-            <TouchableOpacity
-              style={styles.clearButton}
-              onPress={clearAllNotifications}>
-              <Text style={styles.clearButtonText}>Clear All</Text>
-            </TouchableOpacity>
+          {activeTab === 'notifications' && (
+            <>
+              <TouchableOpacity
+                style={styles.refreshButton}
+                onPress={loadRealTransitAlerts}
+                disabled={loadingAlerts}>
+                {loadingAlerts ? (
+                  <ActivityIndicator size="small" color="#6a99e3" />
+                ) : (
+                  <Feather name="refresh-cw" size={20} color="#6a99e3" />
+                )}
+              </TouchableOpacity>
+              {notifications.length > 0 && (
+                <TouchableOpacity
+                  style={styles.clearButton}
+                  onPress={clearAllNotifications}>
+                  <Text style={styles.clearButtonText}>Clear All</Text>
+                </TouchableOpacity>
+              )}
+            </>
           )}
           {activeTab === 'routes' && (
             <TouchableOpacity
@@ -1212,6 +1257,14 @@ const styles = StyleSheet.create({
   headerButtons: {
     flexDirection: 'row',
     gap: 12,
+    alignItems: 'center',
+  },
+  refreshButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#e8f0f9',
+    justifyContent: 'center',
     alignItems: 'center',
   },
   testButton: {
