@@ -1,37 +1,37 @@
+import { MapView, Marker, PROVIDER_GOOGLE, Region } from '@/components/map-view-wrapper';
 import StationDetail from '@/components/station-detail';
 import { useTabBar } from '@/contexts/tab-bar-context';
 import {
-  fetchAllTransitStations,
-  getDetailedStationInfo,
-  setBusApiKey,
-  type BusStop,
-  type DetailedStationInfo,
-  type FerryStop,
-  type RailStation,
-  type SubwayStation
+    fetchAllTransitStations,
+    getDetailedStationInfo,
+    setBusApiKey,
+    type BusStop,
+    type DetailedStationInfo,
+    type FerryStop,
+    type RailStation,
+    type SubwayStation
 } from '@/services/mta-api';
 import Feather from '@expo/vector-icons/Feather';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import {
-  BottomSheetBackdrop,
-  BottomSheetModal,
-  BottomSheetModalProvider,
-  BottomSheetScrollView,
+    BottomSheetBackdrop,
+    BottomSheetModal,
+    BottomSheetModalProvider,
+    BottomSheetScrollView,
 } from '@gorhom/bottom-sheet';
 import Slider from '@react-native-community/slider';
 import * as Location from 'expo-location';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  FlatList,
-  Modal,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    FlatList,
+    Modal,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type TransitType = 'subway' | 'bus' | 'lirr' | 'metro-north' | 'ferry' | 'sir';
