@@ -1,4 +1,6 @@
+import { Colors } from '@/constants/theme';
 import { useSelectedRoute } from '@/contexts/selected-route-context';
+import { useTheme } from '@/contexts/theme-context';
 import Feather from '@expo/vector-icons/Feather';
 import * as Location from 'expo-location';
 import React, { useEffect, useState } from 'react';
@@ -19,6 +21,8 @@ import RouteOption from '../../components/route-option';
 import { GoogleMapsService, TransitRoute } from '../../services/google-maps-api';
 
 export default function HomePage() {
+  const { actualTheme } = useTheme();
+  const colors = Colors[actualTheme];
   const { selectedRoute, setSelectedRoute } = useSelectedRoute();
   const [localSelectedRoute, setLocalSelectedRoute] = useState<TransitRoute>();
   const [oldAgeRoute, setOldAgeRoute] = useState<boolean>(false);
@@ -208,11 +212,11 @@ export default function HomePage() {
   }
 
   return (
-    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#fff' }}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.scrollContent}>
         <View>
           <View style={styles.actionWrapper}>
-            <Text style={styles.title}>Ready to Speed through New York?</Text>
+            <Text style={[styles.title, { color: colors.text }]}>Ready to Speed through New York?</Text>
           </View>
 
           <View style={styles.inputsContainer}>
@@ -233,7 +237,7 @@ export default function HomePage() {
                 />
                 {loadingLocation && (
                   <View style={styles.locationLoadingOverlay}>
-                    <ActivityIndicator size="small" color="#6a99e3" />
+                    <ActivityIndicator size="small" color={colors.tint} />
                   </View>
                 )}
               </View>
@@ -242,8 +246,8 @@ export default function HomePage() {
                 onPress={getCurrentLocation}
                 disabled={loadingLocation}
               >
-                <Feather name="crosshair" size={14} color="#6a99e3" />
-                <Text style={styles.currentLocationText}>Use current location</Text>
+                <Feather name="crosshair" size={14} color={colors.tint} />
+                <Text style={[styles.currentLocationText, { color: colors.tint }]}>Use current location</Text>
               </TouchableOpacity>
             </View>
 
@@ -263,12 +267,12 @@ export default function HomePage() {
             </View>
 
             <View style={styles.oldAgeContainer}>
-              <Text style={styles.oldAgeTitle}>Age-Dependent Transportation:</Text>
+              <Text style={[styles.oldAgeTitle, { color: colors.text }]}>Age-Dependent Transportation:</Text>
               <Switch
                 style={{ marginLeft: 'auto' }}
                 value={oldAgeRoute}
                 onValueChange={() => setOldAgeRoute(!oldAgeRoute)}
-                trackColor={{ true: '#6a99e3', false: '#9ca3af' }}
+                trackColor={{ true: colors.tint, false: '#9ca3af' }}
                 thumbColor={'#ffffff'}
                 ios_backgroundColor={'#9ca3af'}
               />
@@ -279,13 +283,14 @@ export default function HomePage() {
               disabled={loading || !startingLocation || !destinationLocation}
               style={[
                 styles.btn,
+                { backgroundColor: colors.text },
                 (!startingLocation || !destinationLocation) && styles.btnDisabled,
               ]}
             >
               {loading ? (
-                <ActivityIndicator size="small" color="#fff" />
+                <ActivityIndicator size="small" color={colors.background} />
               ) : (
-                <Text style={styles.btnText}>Find Route</Text>
+                <Text style={[styles.btnText, { color: colors.background }]}>Find Route</Text>
               )}
             </TouchableOpacity>
             
@@ -303,7 +308,7 @@ export default function HomePage() {
 
         {selectedRoute && (
           <View style={styles.routesContainer}>
-            <Text style={styles.routesTitle}>Selected Route</Text>
+            <Text style={[styles.routesTitle, { color: colors.text }]}>Selected Route</Text>
             <RouteOption 
               route={selectedRoute}
               routeNumber={1}
@@ -314,7 +319,7 @@ export default function HomePage() {
 
         {routes.length > 0 && (
           <View style={styles.routesContainer}>
-            <Text style={styles.routesTitle}>Available Routes</Text>
+            <Text style={[styles.routesTitle, { color: colors.text }]}>Available Routes</Text>
             {routes.map((route, index) => (
               <RouteOption
                 key={`route-${route.summary}-${index}`}
@@ -329,8 +334,8 @@ export default function HomePage() {
         {!loading && routes.length === 0 && (
           <View style={styles.placeholder}>
             <View style={styles.placeholderInset}>
-              <Feather name="map" size={48} color="#9ca3af" />
-              <Text style={styles.noResultsText}>Enter destination to find routes</Text>
+              <Feather name="map" size={48} color={colors.icon} />
+              <Text style={[styles.noResultsText, { color: colors.icon }]}>Enter destination to find routes</Text>
             </View>
           </View>
         )}
@@ -349,7 +354,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 27,
     fontWeight: '700',
-    color: '#222',
     marginTop: 24,
     marginBottom: 16,
     textAlign: 'left',
@@ -393,7 +397,6 @@ const styles = StyleSheet.create({
   },
   currentLocationText: {
     fontSize: 14,
-    color: '#6a99e3',
     marginLeft: 6,
     fontWeight: '500',
   },
@@ -404,7 +407,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 24,
-    backgroundColor: '#222',
     marginTop: 8,
   },
   btnDisabled: {
@@ -414,7 +416,6 @@ const styles = StyleSheet.create({
     fontSize: 17,
     lineHeight: 24,
     fontWeight: '600',
-    color: '#fff',
   },
   helperText: {
     fontSize: 13,
@@ -429,7 +430,6 @@ const styles = StyleSheet.create({
   routesTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#222',
     marginBottom: 16,
   },
   modalHeader: {
@@ -463,7 +463,6 @@ const styles = StyleSheet.create({
   noResultsText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#6b7280',
     textAlign: 'center',
     marginTop: 16,
   },
@@ -476,7 +475,6 @@ const styles = StyleSheet.create({
   oldAgeTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#222',
     marginRight: 'auto',
     marginLeft: 8,
   },

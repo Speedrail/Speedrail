@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/theme';
 import { useTabBar } from '@/contexts/tab-bar-context';
+import { useTheme } from '@/contexts/theme-context';
 import Feather from '@expo/vector-icons/Feather';
 import { PlatformPressable } from '@react-navigation/elements';
 import { useLinkBuilder } from '@react-navigation/native';
@@ -12,13 +13,18 @@ export default function TabBar({ state, descriptors, navigation }: { state: any;
   const { buildHref } = useLinkBuilder();
   const insets = useSafeAreaInsets();
   const { isTabBarVisible } = useTabBar();
+  const { actualTheme } = useTheme();
+  const colors = Colors[actualTheme];
 
   if (!isTabBarVisible) {
     return null;
   }
 
   return (
-    <View style = {[styles.bar, { bottom: Math.max(insets.bottom + 8, 16) }]}>
+    <View style = {[styles.bar, { 
+      bottom: Math.max(insets.bottom + 8, 16),
+      backgroundColor: colors.background,
+    }]}>
       {state.routes.map((route: { key: string | number; name: string; params: object | undefined; }, index: any) => {
         const { options } = descriptors[route.key];
         const label =
@@ -53,11 +59,15 @@ export default function TabBar({ state, descriptors, navigation }: { state: any;
         return <Feather name="map" size={20} color={color}/>
       case "notifications":
         return <Feather name="bell" size={20} color={color}/>
+      case "settings":
+        return <Feather name="settings" size={20} color={color}/>
     }
   }
 }
 
 function TabBarButton({ route, label, isFocused, options, navigation, buildHref }: any) {
+  const { actualTheme } = useTheme();
+  const colors = Colors[actualTheme];
   const scale = useSharedValue(isFocused ? 1 : 0.95);
   const opacity = useSharedValue(isFocused ? 1 : 0);
   
@@ -78,7 +88,7 @@ function TabBarButton({ route, label, isFocused, options, navigation, buildHref 
       backgroundColor: interpolateColor(
         opacity.value,
         [0, 1],
-        ['transparent', Colors.light.text]
+        ['transparent', colors.text]
       ),
       transform: [{ scale: scale.value }],
     };
@@ -127,8 +137,8 @@ function TabBarButton({ route, label, isFocused, options, navigation, buildHref 
     });
   };
 
-  const iconColor = isFocused ? Colors.light.background : Colors.light.icon;
-  const textColor = isFocused ? Colors.light.background : Colors.light.icon;
+  const iconColor = isFocused ? colors.background : colors.icon;
+  const textColor = isFocused ? colors.background : colors.icon;
 
   return (
     <PlatformPressable
@@ -162,6 +172,8 @@ function getIcon(routeName: string, color: string) {
       return <Feather name="map" size={20} color={color}/>
     case "notifications":
       return <Feather name="bell" size={20} color={color}/>
+    case "settings":
+      return <Feather name="settings" size={20} color={color}/>
   }
 }
 const styles = StyleSheet.create({
@@ -173,7 +185,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: Colors.light.background,
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 20,

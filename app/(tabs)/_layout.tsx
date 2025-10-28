@@ -1,14 +1,14 @@
 import TabBar from '@/components/tab-bar';
 import { Colors } from '@/constants/theme';
 import { TabBarProvider } from '@/contexts/tab-bar-context';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTheme } from '@/contexts/theme-context';
 import { Tabs } from 'expo-router';
 import React from 'react';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const { actualTheme } = useTheme();
 
   return (
     <SafeAreaProvider>
@@ -17,7 +17,7 @@ export default function TabLayout() {
           <Tabs
             tabBar={(props: any) => <TabBar {...props} />}
             screenOptions={{
-              tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+              tabBarActiveTintColor: Colors[actualTheme].tint,
               headerShown: false,
             }}>
             <Tabs.Screen
@@ -42,6 +42,12 @@ export default function TabLayout() {
               name="notifications"
               options={{
                 title: 'Alerts',
+              }}
+            />
+            <Tabs.Screen
+              name="settings"
+              options={{
+                title: 'Settings',
               }}
             />
           </Tabs>
