@@ -2,34 +2,35 @@ import { MapView, Marker, PROVIDER_GOOGLE, Region } from '@/components/map-view-
 import StationDetail from '@/components/station-detail';
 import { useTabBar } from '@/contexts/tab-bar-context';
 import {
-    fetchAllTransitStations,
-    getDetailedStationInfo,
-    setBusApiKey,
-    type BusStop,
-    type DetailedStationInfo,
-    type FerryStop,
-    type RailStation,
-    type SubwayStation
+  fetchAllTransitStations,
+  getDetailedStationInfo,
+  setBusApiKey,
+  type BusStop,
+  type DetailedStationInfo,
+  type FerryStop,
+  type RailStation,
+  type SubwayStation
 } from '@/services/mta-api';
 import Feather from '@expo/vector-icons/Feather';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import {
-    BottomSheetBackdrop,
-    BottomSheetModal,
-    BottomSheetModalProvider,
-    BottomSheetScrollView,
+  BottomSheetBackdrop,
+  BottomSheetModal,
+  BottomSheetModalProvider,
+  BottomSheetScrollView,
 } from '@gorhom/bottom-sheet';
 import Slider from '@react-native-community/slider';
 import * as Location from 'expo-location';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    FlatList,
-    Modal,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  FlatList,
+  Modal,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -113,13 +114,13 @@ CustomMarker.displayName = 'CustomMarker';
 export default function NavigationPage() {
   const [showParameters, setShowParameters] = useState(false);
   const [stopFilter, setStopFilter] = useState<string>('');
-  const [fareFilter, setFareFilter] = useState<number>(10);
+  const [fareFilter, setFareFilter] = useState<number>(30);
   const [accessibilityFilter, setAccessibilityFilter] = useState<'all' | 'wheelchair' | 'ada'>('all');
   const [alertFilter, setAlertFilter] = useState<'all' | 'no-alerts' | 'has-alerts'>('all');
   const [stationDetailsCache, setStationDetailsCache] = useState<Map<string, DetailedStationInfo>>(new Map());
   const [loadingStationDetails, setLoadingStationDetails] = useState<Set<string>>(new Set());
   const { setTabBarVisible } = useTabBar();
-  const mapRef = useRef<MapView>(null);
+  const mapRef = useRef<React.ElementRef<typeof MapView> | null>(null);
   const bottomSheetModalRef = useRef<BottomSheetModal>(null);
   const [initialRegion] = useState<Region>({
     latitude: 40.7580,
@@ -289,9 +290,7 @@ export default function NavigationPage() {
 
   const filteredStations = useMemo(() => {
     const stations = allStations.filter((station) => {
-
       const typeMatch = selectedFilter === 'all' || station.type === selectedFilter;
-
       if (!typeMatch) {
         return false;
       }
@@ -302,58 +301,6 @@ export default function NavigationPage() {
         return false;
       }
 
-      const accessibilityMatch = accessibilityFilter === 'all' || (() => {
-        if (accessibilityFilter === 'wheelchair' || accessibilityFilter === 'ada') {
-          const cachedDetails = stationDetailsCache.get(station.id);
-          
-          if (cachedDetails?.accessibility) {
-            if (accessibilityFilter === 'wheelchair') {
-              return cachedDetails.accessibility.wheelchairAccessible;
-            }
-            if (accessibilityFilter === 'ada') {
-              return cachedDetails.accessibility.ada;
-            }
-          }
-          return false;
-        }
-        return true;
-      })();
-
-      if (!accessibilityMatch) {
-        return false;
-      }
-
-      const alertMatch = alertFilter === 'all' || (() => {
-        if (alertFilter === 'has-alerts' || alertFilter === 'no-alerts') {
-          const cachedDetails = stationDetailsCache.get(station.id);
-          
-          if (cachedDetails?.alerts !== undefined) {
-            if (alertFilter === 'has-alerts') {
-              return cachedDetails.alerts.length >= 1;
-            }
-            if (alertFilter === 'no-alerts') {
-              return cachedDetails.alerts.length === 0;
-            }
-          }
-          return false;
-        }
-        return true;
-      })();
-
-      if (!alertMatch) {
-        return false;
-      }
-
-      if (fareFilter > 0) {
-        const cachedDetails = stationDetailsCache.get(station.id);
-        
-        if (cachedDetails?.fares) {
-          return cachedDetails.fares.some(fare => fare.price <= fareFilter);
-        }
-
-        return false;
-      }
-
       if (userLocation) {
         const distance = calculateDistance(
           userLocation.latitude,
@@ -361,7 +308,45 @@ export default function NavigationPage() {
           station.coordinate.latitude,
           station.coordinate.longitude
         );
-        return distance <= distanceFilter;
+        if (distance > distanceFilter) {
+          return false;
+        }
+      }
+
+      const cachedDetails = stationDetailsCache.get(station.id);
+
+      if (accessibilityFilter !== 'all') {
+        if (!cachedDetails?.accessibility) {
+          return true;
+        }
+        if (accessibilityFilter === 'wheelchair' && !cachedDetails.accessibility.wheelchairAccessible) {
+          return false;
+        }
+        if (accessibilityFilter === 'ada' && !cachedDetails.accessibility.ada) {
+          return false;
+        }
+      }
+
+      if (alertFilter !== 'all') {
+        if (!cachedDetails?.alerts) {
+          return true;
+        }
+        if (alertFilter === 'has-alerts' && cachedDetails.alerts.length === 0) {
+          return false;
+        }
+        if (alertFilter === 'no-alerts' && cachedDetails.alerts.length > 0) {
+          return false;
+        }
+      }
+
+      if (fareFilter < 30) {
+        if (!cachedDetails?.fares) {
+          return true;
+        }
+        const hasFareInRange = cachedDetails.fares.some(fare => fare.price <= fareFilter);
+        if (!hasFareInRange) {
+          return false;
+        }
       }
 
       return true;
@@ -516,9 +501,35 @@ export default function NavigationPage() {
         <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#fff' }}>
           <View style={styles.container}>
             <View style={styles.header}>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={styles.title}>Navigation</Text>
-                <Text style={styles.subtitle}>Find nearby transit</Text>
+                <Text style={styles.subtitle}>
+                  {dataLoading ? 'Loading...' : `${filteredStations.length} stations nearby`}
+                </Text>
+                {(accessibilityFilter !== 'all' || alertFilter !== 'all' || fareFilter < 30 || stopFilter.length > 0) && (
+                  <View style={styles.activeFiltersContainer}>
+                    {accessibilityFilter !== 'all' && (
+                      <View style={styles.activeFilterBadge}>
+                        <MaterialCommunityIcons name="wheelchair-accessibility" size={12} color="#6a99e3" />
+                      </View>
+                    )}
+                    {alertFilter !== 'all' && (
+                      <View style={styles.activeFilterBadge}>
+                        <MaterialCommunityIcons name="alert-circle" size={12} color="#6a99e3" />
+                      </View>
+                    )}
+                    {fareFilter < 30 && (
+                      <View style={styles.activeFilterBadge}>
+                        <MaterialCommunityIcons name="cash" size={12} color="#6a99e3" />
+                      </View>
+                    )}
+                    {stopFilter.length > 0 && (
+                      <View style={styles.activeFilterBadge}>
+                        <Feather name="search" size={12} color="#6a99e3" />
+                      </View>
+                    )}
+                  </View>
+                )}
               </View>
               <TouchableOpacity
                 style={styles.parametersButton}
@@ -645,39 +656,62 @@ export default function NavigationPage() {
           animationType="slide"
           presentationStyle="pageSheet"
           onRequestClose={() => setShowParameters(false)}>
-          <SafeAreaView style={{ flex: 1 }}>
+          <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
             <View style={styles.parametersContainer}>
               <View style={styles.parametersHeader}>
-                <Text style={styles.parametersTitle}>Parameters</Text>
+                <Text style={styles.parametersTitle}>Filter Stations</Text>
                 <TouchableOpacity
                   style={styles.parametersCloseButton}
                   onPress={() => setShowParameters(false)}>
-                  <Feather name="x" size={24} color="#6a99e3" />
+                  <Feather name="x" size={24} color="#222" />
                 </TouchableOpacity>
               </View>
+              
               <View style={styles.parametersContent}>
-                <Text style={styles.parametersStopFilter}>Stop Filter</Text>
+                <View style={styles.filterSection}>
+                  <Text style={styles.filterSectionTitle}>Search by Name</Text>
+                  <View style={styles.searchInputContainer}>
+                    <Feather name="search" size={18} color="#687076" style={styles.searchIcon} />
+                    <TextInput
+                      style={styles.searchInput}
+                      placeholder="Search stations..."
+                      value={stopFilter}
+                      onChangeText={setStopFilter}
+                      placeholderTextColor="#9ca3af"
+                    />
+                    {stopFilter.length > 0 && (
+                      <TouchableOpacity onPress={() => setStopFilter('')} style={styles.clearButton}>
+                        <Feather name="x-circle" size={18} color="#687076" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
 
                 <View style={styles.filterSection}>
-                  <Text style={styles.filterSectionTitle}>Accessibility</Text>
+                  <View style={styles.filterSectionHeader}>
+                    <MaterialCommunityIcons name="wheelchair-accessibility" size={20} color="#222" />
+                    <Text style={styles.filterSectionTitle}>Accessibility</Text>
+                  </View>
                   <View style={styles.filterOptions}>
                     {[
-                      { key: 'all', label: 'All Stations' },
-                      { key: 'wheelchair', label: 'Wheelchair Accessible' },
-                      { key: 'ada', label: 'ADA Compliant' }
+                      { key: 'all', label: 'All Stations', icon: 'all-inclusive' },
+                      { key: 'wheelchair', label: 'Wheelchair', icon: 'wheelchair-accessibility' },
+                      { key: 'ada', label: 'ADA', icon: 'checkbox-marked-circle' }
                     ].map((option) => (
                       <TouchableOpacity
                         key={option.key}
-                        activeOpacity={0.8}
+                        activeOpacity={0.7}
                         style={[
                           styles.filterOption,
                           accessibilityFilter === option.key && styles.filterOptionActive
                         ]}
                         onPress={() => setAccessibilityFilter(option.key as any)}>
                         <View style={styles.filterOptionContent}>
-                          {(option.key === 'all') && <MaterialCommunityIcons name='all-inclusive' size={14} color={`${accessibilityFilter === option.key ? '#fff' : '#6a99e3'}`} />}
-                          {(option.key === 'wheelchair') && <MaterialCommunityIcons name='wheelchair-accessibility' size={14} color={`${accessibilityFilter === option.key ? '#fff' : '#6a99e3'}`} />}
-                          {(option.key === 'ada') && <MaterialCommunityIcons name='checkbox-marked-circle' size={14} color={`${accessibilityFilter === option.key ? '#fff' : '#6a99e3'}`} />}
+                          <MaterialCommunityIcons 
+                            name={option.icon as any} 
+                            size={16} 
+                            color={accessibilityFilter === option.key ? '#fff' : '#6a99e3'} 
+                          />
                           <Text style={[
                             styles.filterOptionText,
                             accessibilityFilter === option.key && styles.filterOptionTextActive
@@ -691,8 +725,11 @@ export default function NavigationPage() {
                 </View>
 
                 <View style={styles.filterSection}>
-                  <Text style={styles.filterSectionTitle}>Fare Cost Range: ${fareFilter.toFixed(2)}</Text>
-                  <View style={styles.filterOptions}>
+                  <View style={styles.filterSectionHeader}>
+                    <MaterialCommunityIcons name="cash" size={20} color="#222" />
+                    <Text style={styles.filterSectionTitle}>Maximum Fare: ${fareFilter.toFixed(2)}</Text>
+                  </View>
+                  <View style={styles.sliderContainer}>
                     <Slider
                       style={styles.slider}
                       minimumValue={0.0}
@@ -712,24 +749,30 @@ export default function NavigationPage() {
                 </View>
 
                 <View style={styles.filterSection}>
-                  <Text style={styles.filterSectionTitle}>Service Alerts</Text>
+                  <View style={styles.filterSectionHeader}>
+                    <MaterialCommunityIcons name="alert-circle-outline" size={20} color="#222" />
+                    <Text style={styles.filterSectionTitle}>Service Alerts</Text>
+                  </View>
                   <View style={styles.filterOptions}>
                     {[
-                      { key: 'all', label: 'All Stations' },
-                      { key: 'no-alerts', label: 'No Alerts' },
-                      { key: 'has-alerts', label: 'Has Alerts' }
+                      { key: 'all', label: 'All Stations', icon: 'all-inclusive' },
+                      { key: 'no-alerts', label: 'No Alerts', icon: 'check-circle' },
+                      { key: 'has-alerts', label: 'Has Alerts', icon: 'alert-circle' }
                     ].map((option) => (
                       <TouchableOpacity
                         key={option.key}
+                        activeOpacity={0.7}
                         style={[
                           styles.filterOption,
                           alertFilter === option.key && styles.filterOptionActive
                         ]}
                         onPress={() => setAlertFilter(option.key as any)}>
                         <View style={styles.filterOptionContent}>
-                          {(option.key === 'all') && <MaterialCommunityIcons name='all-inclusive' size={14} color={`${alertFilter === option.key ? '#fff' : '#6a99e3'}`} />}
-                          {(option.key === 'no-alerts') && <MaterialCommunityIcons name='check-circle' size={14} color={`${alertFilter === option.key ? '#fff' : '#6a99e3'}`} />}
-                          {(option.key === 'has-alerts') && <MaterialCommunityIcons name='alert-circle' size={14} color={`${alertFilter === option.key ? '#fff' : '#6a99e3'}`} />}
+                          <MaterialCommunityIcons 
+                            name={option.icon as any} 
+                            size={16} 
+                            color={alertFilter === option.key ? '#fff' : '#6a99e3'} 
+                          />
                           <Text style={[
                             styles.filterOptionText,
                             alertFilter === option.key && styles.filterOptionTextActive
@@ -742,14 +785,19 @@ export default function NavigationPage() {
                   </View>
                 </View>
 
-                <View style={styles.filterSection}>
-                  <Text style={styles.filterSectionTitle}>Distance Range</Text>
-                  <View style={styles.distanceFilterInfo}>
-                    <Text style={styles.distanceFilterText}>
-                      Current: {distanceFilter.toFixed(1)} miles
-                    </Text>
-                  </View>
-                </View>
+                <TouchableOpacity 
+                  style={styles.resetButton}
+                  onPress={() => {
+                    setStopFilter('');
+                    setFareFilter(30);
+                    setAccessibilityFilter('all');
+                    setAlertFilter('all');
+                    setDistanceFilter(1);
+                    setTempDistanceFilter(1);
+                  }}>
+                  <MaterialCommunityIcons name="refresh" size={20} color="#6a99e3" />
+                  <Text style={styles.resetButtonText}>Reset All Filters</Text>
+                </TouchableOpacity>
               </View>
             </View>
           </SafeAreaView>
@@ -979,13 +1027,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   searchInput: {
-    borderWidth: 1,
-    borderColor: '#e8f0f9',
-    borderRadius: 12,
-    paddingHorizontal: 16,
+    flex: 1,
     paddingVertical: 12,
     fontSize: 16,
-    backgroundColor: '#f8f9fa',
     color: '#222',
   },
   distanceFilterInfo: {
@@ -1023,5 +1067,56 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e8f0f9',
+    paddingHorizontal: 12,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  clearButton: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  filterSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  sliderContainer: {
+    width: '100%',
+  },
+  resetButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 16,
+    backgroundColor: '#e8f0f9',
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  resetButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6a99e3',
+  },
+  activeFiltersContainer: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 6,
+  },
+  activeFilterBadge: {
+    backgroundColor: '#e8f0f9',
+    borderRadius: 12,
+    padding: 4,
+    paddingHorizontal: 8,
   },
 });

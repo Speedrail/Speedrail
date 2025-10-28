@@ -184,6 +184,11 @@ interface EquipmentData {
 
 let equipmentCache: CachedData<EquipmentData> | null = null;
 
+const addressCache = new Map<string, { address: string | undefined; timestamp: number }>();
+const ADDRESS_CACHE_DURATION = 7 * 24 * 60 * 60 * 1000;
+let lastAddressRequestTime = 0;
+const ADDRESS_REQUEST_DELAY = 1000;
+
 export function setBusApiKey(key: string) {
   MTA_BUS_API_KEY = key;
 }
@@ -539,7 +544,6 @@ export async function fetchSubwayStations(): Promise<SubwayStation[]> {
     if (stationCache.subway) {
       const age = Date.now() - stationCache.subway.timestamp;
       if (age < CACHE_DURATION) {
-        console.log(`Using cached subway stations (${Math.round(age / 1000 / 60)} minutes old)`);
         return stationCache.subway.data;
       }
     }
@@ -570,7 +574,6 @@ export async function fetchSubwayStations(): Promise<SubwayStation[]> {
     console.error('Error fetching subway stations:', error);
     
     if (stationCache.subway) {
-      console.log('Returning stale cached subway data due to error');
       return stationCache.subway.data;
     }
     
@@ -719,7 +722,6 @@ export async function fetchLIRRStations(): Promise<RailStation[]> {
     if (stationCache.lirr) {
       const age = Date.now() - stationCache.lirr.timestamp;
       if (age < CACHE_DURATION) {
-        console.log(`Using cached LIRR stations (${Math.round(age / 1000 / 60)} minutes old)`);
         return stationCache.lirr.data;
       }
     }
@@ -740,7 +742,6 @@ export async function fetchLIRRStations(): Promise<RailStation[]> {
     console.error('Error fetching LIRR stations from MTA GTFS:', error);
     
     if (stationCache.lirr) {
-      console.log('Returning stale cached data due to error');
       return stationCache.lirr.data;
     }
     
@@ -753,7 +754,6 @@ export async function fetchMetroNorthStations(): Promise<RailStation[]> {
     if (stationCache.metroNorth) {
       const age = Date.now() - stationCache.metroNorth.timestamp;
       if (age < CACHE_DURATION) {
-        console.log(`Using cached Metro-North stations (${Math.round(age / 1000 / 60)} minutes old)`);
         return stationCache.metroNorth.data;
       }
     }
@@ -774,7 +774,6 @@ export async function fetchMetroNorthStations(): Promise<RailStation[]> {
     console.error('Error fetching Metro-North stations from MTA GTFS:', error);
     
     if (stationCache.metroNorth) {
-      console.log('Returning stale cached data due to error');
       return stationCache.metroNorth.data;
     }
     
@@ -787,7 +786,6 @@ export async function fetchStatenIslandRailwayStations(): Promise<RailStation[]>
     if (stationCache.sir) {
       const age = Date.now() - stationCache.sir.timestamp;
       if (age < CACHE_DURATION) {
-        console.log(`Using cached SIR stations (${Math.round(age / 1000 / 60)} minutes old)`);
         return stationCache.sir.data;
       }
     }
@@ -805,7 +803,6 @@ export async function fetchStatenIslandRailwayStations(): Promise<RailStation[]>
     console.error('Error fetching SIR stations from MTA GTFS:', error);
     
     if (stationCache.sir) {
-      console.log('Returning stale cached data due to error');
       return stationCache.sir.data;
     }
     
@@ -818,7 +815,6 @@ export async function fetchFerryStops(): Promise<FerryStop[]> {
     if (stationCache.ferry) {
       const age = Date.now() - stationCache.ferry.timestamp;
       if (age < CACHE_DURATION) {
-        console.log(`Using cached ferry stops (${Math.round(age / 1000 / 60)} minutes old)`);
         return stationCache.ferry.data;
       }
     }
@@ -927,7 +923,6 @@ export async function fetchFerryStops(): Promise<FerryStop[]> {
     console.error('Error fetching ferry stops:', error);
     
     if (stationCache.ferry) {
-      console.log('Returning stale cached ferry data due to error');
       return stationCache.ferry.data;
     }
     
@@ -1152,7 +1147,8 @@ export async function searchNearbyTransit(latitude: number, longitude: number, r
 
 export async function getDetailedStationInfo(
   stationId: string,
-  type: 'subway' | 'bus' | 'lirr' | 'metro-north' | 'ferry' | 'sir'
+  type: 'subway' | 'bus' | 'lirr' | 'metro-north' | 'ferry' | 'sir',
+  includeAddress: boolean = false
 ): Promise<DetailedStationInfo | null> {
   try {
     let baseStation: any = null;
@@ -1208,7 +1204,7 @@ export async function getDetailedStationInfo(
       routes.some(route => alert.affectedRoutes.includes(route))
     );
     const fares = await getFaresForStation(type);
-    const address = await getStationAddress(baseStation.latitude, baseStation.longitude, baseStation.name);
+    const address = includeAddress ? await getStationAddress(baseStation.latitude, baseStation.longitude, baseStation.name) : undefined;
 
     return {
       id: baseStation.id,
@@ -1314,21 +1310,45 @@ async function getStationAddress(
   longitude: number,
   stationName?: string
 ): Promise<string | undefined> {
+  const cacheKey = `${latitude.toFixed(6)},${longitude.toFixed(6)}`;
+  
+  const cached = addressCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp < ADDRESS_CACHE_DURATION)) {
+    return cached.address;
+  }
+  
+  const timeSinceLastRequest = Date.now() - lastAddressRequestTime;
+  if (timeSinceLastRequest < ADDRESS_REQUEST_DELAY) {
+    await new Promise(resolve => setTimeout(resolve, ADDRESS_REQUEST_DELAY - timeSinceLastRequest));
+  }
+  
   try {
+    lastAddressRequestTime = Date.now();
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
     const response = await fetch(
       `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
       {
         headers: {
           'User-Agent': 'Speedrail Transit App',
         },
+        signal: controller.signal,
       }
     );
     
+    clearTimeout(timeoutId);
+    
     if (!response.ok) {
+      console.warn(`Address lookup failed with status ${response.status}`);
+      addressCache.set(cacheKey, { address: undefined, timestamp: Date.now() });
       return undefined;
     }
     
     const data = await response.json();
+    
+    let address: string | undefined;
     
     if (data.address) {
       const parts: string[] = [];
@@ -1355,17 +1375,23 @@ async function getStationAddress(
       }
       
       if (parts.length > 0 && cityParts.length > 0) {
-        return `${parts.join(' ')}, ${cityParts.join(', ')}`;
+        address = `${parts.join(' ')}, ${cityParts.join(', ')}`;
       } else if (cityParts.length > 0) {
-        return cityParts.join(', ');
+        address = cityParts.join(', ');
       } else if (data.display_name) {
-        return data.display_name;
+        address = data.display_name;
       }
     }
     
-    return undefined;
+    addressCache.set(cacheKey, { address, timestamp: Date.now() });
+    return address;
   } catch (error) {
-    console.error('Error fetching address:', error);
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.warn('Address lookup timed out');
+    } else {
+      console.warn('Error fetching address (non-critical):', error instanceof Error ? error.message : 'Unknown error');
+    }
+    addressCache.set(cacheKey, { address: undefined, timestamp: Date.now() });
     return undefined;
   }
 }
