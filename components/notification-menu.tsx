@@ -1,27 +1,54 @@
 import Feather from '@expo/vector-icons/Feather';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Haptics from 'expo-haptics';
+import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
+  Modal,
   Platform,
+  ScrollView,
   StyleSheet,
+  Switch,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { GoogleMapsService, TransitRoute } from '../services/google-maps-api';
+import PlaceAutocompleteInput from './place-autocomplete-input';
 
 interface NotificationItem {
   id: string;
   title: string;
   message: string;
   timestamp: Date;
-  type: 'alert' | 'delay' | 'update' | 'info';
+  type: 'alert' | 'delay' | 'update' | 'info' | 'departure';
   read: boolean;
   routeInfo?: string;
+}
+
+interface DailyRoute {
+  id: string;
+  name: string;
+  startLocation: string;
+  startCoords?: { lat: number; lng: number };
+  destination: string;
+  destinationCoords: { lat: number; lng: number };
+  trainLines: string[];
+  departureTime: string;
+  daysOfWeek: boolean[];
+  advanceNoticeMinutes: number;
+  bufferMinutes: number;
+  enabled: boolean;
+  morningBriefing: boolean;
+  selectedRoute?: TransitRoute;
+  routeSummary?: string;
 }
 
 Notifications.setNotificationHandler({
@@ -40,12 +67,31 @@ export default function NotificationMenu() {
   const [notification, setNotification] = useState<Notifications.Notification | undefined>(
     undefined
   );
+  const [dailyRoutes, setDailyRoutes] = useState<DailyRoute[]>([]);
+  const [showRouteModal, setShowRouteModal] = useState(false);
+  const [editingRoute, setEditingRoute] = useState<DailyRoute | null>(null);
+  const [activeTab, setActiveTab] = useState<'notifications' | 'routes'>('notifications');
 
   useEffect(() => {
     registerForPushNotificationsAsync().then((token: string | undefined) => token && setExpoPushToken(token));
     requestNotificationPermissions();
     loadSampleNotifications();
+    loadDailyRoutes();
+    setupNotificationListener();
   }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      checkAndScheduleRouteNotifications();
+    }, 60000);
+    checkAndScheduleRouteNotifications();
+    return () => clearInterval(interval);
+  }, [dailyRoutes]);
+
+  const setupNotificationListener = () => {
+    const subscription = Notifications.addNotificationReceivedListener(handleNewNotification);
+    return () => subscription.remove();
+  };
 
   const requestNotificationPermissions = async () => {
     try {
@@ -61,9 +107,184 @@ export default function NotificationMenu() {
         Alert.alert('Permission Required', 'Please enable notifications to receive transit alerts');
         return;
       }
+
+      const locationStatus = await Location.requestForegroundPermissionsAsync();
+      if (locationStatus.status !== 'granted') {
+        Alert.alert('Location Required', 'Please enable location access for smart departure notifications');
+      }
     } catch (error) {
       console.error('Error requesting notification permissions:', error);
     }
+  };
+
+  const loadDailyRoutes = async () => {
+    try {
+      const stored = await AsyncStorage.getItem('dailyRoutes');
+      if (stored) {
+        setDailyRoutes(JSON.parse(stored));
+      }
+    } catch (error) {
+      console.error('Error loading daily routes:', error);
+    }
+  };
+
+  const saveDailyRoutes = async (routes: DailyRoute[]) => {
+    try {
+      await AsyncStorage.setItem('dailyRoutes', JSON.stringify(routes));
+      setDailyRoutes(routes);
+    } catch (error) {
+      console.error('Error saving daily routes:', error);
+    }
+  };
+
+  const checkAndScheduleRouteNotifications = async () => {
+    const now = new Date();
+    const currentDay = now.getDay();
+    const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+    for (const route of dailyRoutes) {
+      if (!route.enabled || !route.daysOfWeek[currentDay]) continue;
+
+      const [hours, minutes] = route.departureTime.split(':').map(Number);
+      const departureDate = new Date(now);
+      departureDate.setHours(hours, minutes, 0, 0);
+
+      const timeDiff = departureDate.getTime() - now.getTime();
+      const minutesUntilDeparture = Math.floor(timeDiff / 60000);
+
+      if (minutesUntilDeparture === route.advanceNoticeMinutes && minutesUntilDeparture > 0) {
+        await sendMorningBriefing(route);
+      }
+
+      if (minutesUntilDeparture > 0 && minutesUntilDeparture <= route.advanceNoticeMinutes) {
+        const walkingTime = await calculateWalkingTime(route);
+        const departureNoticeTime = minutesUntilDeparture - walkingTime - route.bufferMinutes;
+
+        if (departureNoticeTime <= 5 && departureNoticeTime >= -2) {
+          await sendDepartureNotification(route, walkingTime);
+        }
+      }
+    }
+  };
+
+  const calculateWalkingTime = async (route: DailyRoute): Promise<number> => {
+    try {
+      const location = await Location.getCurrentPositionAsync({});
+      const origin = {
+        lat: location.coords.latitude,
+        lng: location.coords.longitude,
+      };
+
+      const directions = await GoogleMapsService.getDirections(
+        origin,
+        route.destinationCoords,
+        'walking'
+      );
+
+      if (directions?.routes?.[0]?.legs?.[0]?.duration?.value) {
+        return Math.ceil(directions.routes[0].legs[0].duration.value / 60);
+      }
+    } catch (error) {
+      console.error('Error calculating walking time:', error);
+    }
+    return 15;
+  };
+
+  const sendMorningBriefing = async (route: DailyRoute) => {
+    if (!route.morningBriefing) return;
+
+    const walkingTime = await calculateWalkingTime(route);
+    const departureTime = new Date();
+    const [hours, minutes] = route.departureTime.split(':').map(Number);
+    departureTime.setHours(hours, minutes);
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: '🌅 Morning Commute Briefing',
+        body: `${route.name}: ${walkingTime} min walk to ${route.destination}. ${route.trainLines.join(', ')} trains. Leave by ${new Date(departureTime.getTime() - (walkingTime + route.bufferMinutes) * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+        data: { type: 'briefing', routeId: route.id },
+        sound: true,
+      },
+      trigger: null,
+    });
+
+    const newNotification: NotificationItem = {
+      id: Date.now().toString(),
+      title: '🌅 Morning Commute Briefing',
+      message: `${route.name}: ${walkingTime} min walk. Leave by ${new Date(departureTime.getTime() - (walkingTime + route.bufferMinutes) * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+      timestamp: new Date(),
+      type: 'info',
+      read: false,
+      routeInfo: route.trainLines.join(', '),
+    };
+    setNotifications(prev => [newNotification, ...prev]);
+  };
+
+  const sendDepartureNotification = async (route: DailyRoute, walkingTime: number) => {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: '⏰ Time to Leave!',
+        body: `Leave now for ${route.destination} (${walkingTime} min walk + ${route.bufferMinutes} min buffer). Catch the ${route.trainLines.join(' or ')} train.`,
+        data: { type: 'departure', routeId: route.id },
+        sound: true,
+        priority: Notifications.AndroidNotificationPriority.HIGH,
+      },
+      trigger: null,
+    });
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+
+    const newNotification: NotificationItem = {
+      id: Date.now().toString(),
+      title: '⏰ Time to Leave!',
+      message: `${route.name}: ${walkingTime} min walk to ${route.destination}`,
+      timestamp: new Date(),
+      type: 'departure',
+      read: false,
+      routeInfo: route.trainLines.join(', '),
+    };
+    setNotifications(prev => [newNotification, ...prev]);
+  };
+
+  const addOrUpdateRoute = async (route: DailyRoute) => {
+    const existingIndex = dailyRoutes.findIndex(r => r.id === route.id);
+    let updatedRoutes;
+    
+    if (existingIndex >= 0) {
+      updatedRoutes = [...dailyRoutes];
+      updatedRoutes[existingIndex] = route;
+    } else {
+      updatedRoutes = [...dailyRoutes, route];
+    }
+    
+    await saveDailyRoutes(updatedRoutes);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const deleteRoute = (id: string) => {
+    Alert.alert(
+      'Delete Route',
+      'Are you sure you want to delete this daily route?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const updatedRoutes = dailyRoutes.filter(r => r.id !== id);
+            await saveDailyRoutes(updatedRoutes);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          },
+        },
+      ]
+    );
+  };
+
+  const toggleRouteEnabled = async (id: string) => {
+    const updatedRoutes = dailyRoutes.map(r =>
+      r.id === id ? { ...r, enabled: !r.enabled } : r
+    );
+    await saveDailyRoutes(updatedRoutes);
   };
 
   const handleNewNotification = (notification: Notifications.Notification) => {
@@ -284,44 +505,680 @@ export default function NotificationMenu() {
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
+  const renderRouteCard = ({ item }: { item: DailyRoute }) => {
+    const daysAbbrev = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const activeDays = item.daysOfWeek
+      .map((active, idx) => active ? daysAbbrev[idx] : null)
+      .filter(Boolean)
+      .join(', ');
+
+    return (
+      <View style={[styles.routeCard, !item.enabled && styles.routeCardDisabled]}>
+        <View style={styles.routeHeader}>
+          <View style={styles.routeHeaderLeft}>
+            <Text style={styles.routeName}>{item.name}</Text>
+            <Text style={styles.routeDays}>{activeDays}</Text>
+          </View>
+          <Switch
+            value={item.enabled}
+            onValueChange={() => toggleRouteEnabled(item.id)}
+            trackColor={{ false: '#d1d5db', true: '#6a99e3' }}
+            thumbColor="#fff"
+          />
+        </View>
+
+        <View style={styles.routeDetails}>
+          <View style={styles.routeDetailRow}>
+            <Feather name="map-pin" size={14} color="#6b7280" />
+            <Text style={styles.routeDetailText}>{item.destination}</Text>
+          </View>
+          <View style={styles.routeDetailRow}>
+            <Feather name="clock" size={14} color="#6b7280" />
+            <Text style={styles.routeDetailText}>
+              Depart at {item.departureTime} ({item.advanceNoticeMinutes} min notice)
+            </Text>
+          </View>
+          <View style={styles.routeDetailRow}>
+            <Feather name="navigation" size={14} color="#6b7280" />
+            <Text style={styles.routeDetailText}>
+              {item.trainLines.join(', ')} • {item.bufferMinutes} min buffer
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.routeActions}>
+          <TouchableOpacity
+            style={styles.routeActionButton}
+            onPress={() => {
+              setEditingRoute(item);
+              setShowRouteModal(true);
+            }}>
+            <Feather name="edit-2" size={16} color="#6a99e3" />
+            <Text style={styles.routeActionText}>Edit</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.routeActionButton}
+            onPress={() => deleteRoute(item.id)}>
+            <Feather name="trash-2" size={16} color="#dc2626" />
+            <Text style={[styles.routeActionText, { color: '#dc2626' }]}>Delete</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Notifications</Text>
-          {unreadCount > 0 && (
+          {activeTab === 'notifications' && unreadCount > 0 && (
             <Text style={styles.unreadCount}>{unreadCount} unread</Text>
+          )}
+          {activeTab === 'routes' && (
+            <Text style={styles.unreadCount}>{dailyRoutes.length} routes</Text>
           )}
         </View>
         <View style={styles.headerButtons}>
-          {notifications.length > 0 && (
+          {activeTab === 'notifications' && notifications.length > 0 && (
             <TouchableOpacity
               style={styles.clearButton}
               onPress={clearAllNotifications}>
               <Text style={styles.clearButtonText}>Clear All</Text>
             </TouchableOpacity>
           )}
+          {activeTab === 'routes' && (
+            <TouchableOpacity
+              style={styles.addRouteButton}
+              onPress={() => {
+                setEditingRoute(null);
+                setShowRouteModal(true);
+              }}>
+              <Feather name="plus" size={20} color="#fff" />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
-      {notifications.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Feather name="bell-off" size={64} color="#e5e7eb" />
-          <Text style={styles.emptyTitle}>No notifications</Text>
-          <Text style={styles.emptySubtitle}>
-            You&apos;ll be notified about service changes and updates
+      <View style={styles.tabBar}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'notifications' && styles.activeTab]}
+          onPress={() => setActiveTab('notifications')}>
+          <Feather
+            name="bell"
+            size={18}
+            color={activeTab === 'notifications' ? '#6a99e3' : '#9ca3af'}
+          />
+          <Text style={[styles.tabText, activeTab === 'notifications' && styles.activeTabText]}>
+            Notifications
           </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'routes' && styles.activeTab]}
+          onPress={() => setActiveTab('routes')}>
+          <Feather
+            name="navigation"
+            size={18}
+            color={activeTab === 'routes' ? '#6a99e3' : '#9ca3af'}
+          />
+          <Text style={[styles.tabText, activeTab === 'routes' && styles.activeTabText]}>
+            Daily Routes
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {activeTab === 'notifications' ? (
+        notifications.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Feather name="bell-off" size={64} color="#e5e7eb" />
+            <Text style={styles.emptyTitle}>No notifications</Text>
+            <Text style={styles.emptySubtitle}>
+              You&apos;ll be notified about service changes and updates
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={notifications}
+            renderItem={renderNotification}
+            keyExtractor={item => item.id}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+          />
+        )
+      ) : dailyRoutes.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Feather name="navigation" size={64} color="#e5e7eb" />
+          <Text style={styles.emptyTitle}>No daily routes</Text>
+          <Text style={styles.emptySubtitle}>
+            Add your daily commute to get smart departure notifications
+          </Text>
+          <TouchableOpacity
+            style={styles.addFirstRouteButton}
+            onPress={() => {
+              setEditingRoute(null);
+              setShowRouteModal(true);
+            }}>
+            <Feather name="plus" size={20} color="#fff" />
+            <Text style={styles.addFirstRouteText}>Add Your First Route</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <FlatList
-          data={notifications}
-          renderItem={renderNotification}
+          data={dailyRoutes}
+          renderItem={renderRouteCard}
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
         />
       )}
+
+      <RouteModal
+        visible={showRouteModal}
+        route={editingRoute}
+        onClose={() => {
+          setShowRouteModal(false);
+          setEditingRoute(null);
+        }}
+        onSave={addOrUpdateRoute}
+      />
     </View>
+  );
+}
+
+function RouteModal({
+  visible,
+  route,
+  onClose,
+  onSave,
+}: {
+  visible: boolean;
+  route: DailyRoute | null;
+  onClose: () => void;
+  onSave: (route: DailyRoute) => void;
+}) {
+  const [step, setStep] = useState<'location' | 'route' | 'config'>(route ? 'config' : 'location');
+  const [name, setName] = useState('');
+  const [startingPoint, setStartingPoint] = useState('');
+  const [destination, setDestination] = useState('');
+  const [startingLocation, setStartingLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [destinationLocation, setDestinationLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [routes, setRoutes] = useState<TransitRoute[]>([]);
+  const [selectedRoute, setSelectedRoute] = useState<TransitRoute | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadingLocation, setLoadingLocation] = useState(false);
+  const [departureTime, setDepartureTime] = useState('08:00');
+  const [daysOfWeek, setDaysOfWeek] = useState([false, true, true, true, true, true, false]);
+  const [advanceNoticeMinutes, setAdvanceNoticeMinutes] = useState(30);
+  const [bufferMinutes, setBufferMinutes] = useState(5);
+  const [morningBriefing, setMorningBriefing] = useState(true);
+
+  useEffect(() => {
+    if (visible) {
+      if (route) {
+        setStep('config');
+        setName(route.name);
+        setStartingPoint(route.startLocation || '');
+        setDestination(route.destination);
+        setStartingLocation(route.startCoords || null);
+        setDestinationLocation(route.destinationCoords);
+        setSelectedRoute(route.selectedRoute || null);
+        setDepartureTime(route.departureTime);
+        setDaysOfWeek(route.daysOfWeek);
+        setAdvanceNoticeMinutes(route.advanceNoticeMinutes);
+        setBufferMinutes(route.bufferMinutes);
+        setMorningBriefing(route.morningBriefing);
+      } else {
+        setStep('location');
+        setName('');
+        setStartingPoint('');
+        setDestination('');
+        setStartingLocation(null);
+        setDestinationLocation(null);
+        setRoutes([]);
+        setSelectedRoute(null);
+        setDepartureTime('08:00');
+        setDaysOfWeek([false, true, true, true, true, true, false]);
+        setAdvanceNoticeMinutes(30);
+        setBufferMinutes(5);
+        setMorningBriefing(true);
+        getCurrentLocation();
+      }
+    }
+  }, [route, visible]);
+
+  const getCurrentLocation = async () => {
+    setLoadingLocation(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setLoadingLocation(false);
+        return;
+      }
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      const address = await GoogleMapsService.reverseGeocode(
+        location.coords.latitude,
+        location.coords.longitude
+      );
+      if (address) {
+        setStartingPoint(address);
+        setStartingLocation({
+          lat: location.coords.latitude,
+          lng: location.coords.longitude,
+        });
+      }
+    } catch (error) {
+      console.error('Error getting current location:', error);
+    } finally {
+      setLoadingLocation(false);
+    }
+  };
+
+  const handleFindRoutes = async () => {
+    if (!startingLocation || !destinationLocation) {
+      Alert.alert('Missing Information', 'Please select both starting point and destination');
+      return;
+    }
+    setLoading(true);
+    try {
+      const directionsResponse = await GoogleMapsService.getDirections(
+        startingLocation,
+        destinationLocation,
+        'transit',
+        Date.now(),
+        true
+      );
+      if (directionsResponse && directionsResponse.routes.length > 0) {
+        setRoutes(directionsResponse.routes.slice(0, 5));
+        setStep('route');
+      } else {
+        Alert.alert('No Routes Found', 'No public transit routes available for this destination');
+      }
+    } catch (error) {
+      console.error('Error fetching routes:', error);
+      Alert.alert('Error', 'Failed to fetch routes. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRouteSelect = (transitRoute: TransitRoute) => {
+    setSelectedRoute(transitRoute);
+    setStep('config');
+  };
+
+  const extractTrainLines = (transitRoute: TransitRoute): string[] => {
+    const lines: string[] = [];
+    const leg = transitRoute.legs?.[0];
+    if (leg?.steps) {
+      leg.steps.forEach(step => {
+        if (step.travel_mode === 'TRANSIT' && step.transit_details) {
+          const lineName = step.transit_details.line?.short_name || step.transit_details.line?.name;
+          if (lineName) {
+            lines.push(lineName);
+          }
+        }
+      });
+    }
+    return lines;
+  };
+
+  const handleSave = async () => {
+    if (!name) {
+      Alert.alert('Missing Information', 'Please enter a route name');
+      return;
+    }
+    if (!selectedRoute || !destinationLocation) {
+      Alert.alert('Missing Information', 'Please select a route');
+      return;
+    }
+
+    const trainLines = extractTrainLines(selectedRoute);
+    const leg = selectedRoute.legs?.[0];
+    const destinationName = leg?.end_address || destination;
+
+    const newRoute: DailyRoute = {
+      id: route?.id || Date.now().toString(),
+      name,
+      startLocation: startingPoint || 'Current Location',
+      startCoords: startingLocation || undefined,
+      destination: destinationName,
+      destinationCoords: destinationLocation,
+      trainLines,
+      departureTime,
+      daysOfWeek,
+      advanceNoticeMinutes,
+      bufferMinutes,
+      enabled: route?.enabled ?? true,
+      morningBriefing,
+      selectedRoute,
+      routeSummary: selectedRoute.summary,
+    };
+
+    onSave(newRoute);
+    onClose();
+  };
+
+  const handleBack = () => {
+    if (step === 'route') {
+      setStep('location');
+    } else if (step === 'config') {
+      if (route) {
+        onClose();
+      } else {
+        setStep('route');
+      }
+    }
+  };
+
+  const daysAbbrev = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+  const renderLocationStep = () => (
+    <>
+      <View style={styles.modalHeader}>
+        <TouchableOpacity onPress={onClose}>
+          <Feather name="x" size={24} color="#222" />
+        </TouchableOpacity>
+        <Text style={styles.modalTitle}>Select Route</Text>
+        <View style={{ width: 24 }} />
+      </View>
+
+      <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.formSection}>
+          <Text style={styles.formLabel}>Starting Point</Text>
+          <View style={styles.inputRow}>
+            <PlaceAutocompleteInput
+              placeholder="Starting Point"
+              icon="navigation"
+              value={startingPoint}
+              onPlaceSelected={(placeId, description, location) => {
+                setStartingPoint(description);
+                setStartingLocation(location);
+              }}
+              onChangeText={(text) => setStartingPoint(text)}
+              containerStyle={{ position: 'relative', zIndex: 1000 }}
+            />
+            {loadingLocation && (
+              <View style={styles.locationLoadingOverlay}>
+                <ActivityIndicator size="small" color="#6a99e3" />
+              </View>
+            )}
+          </View>
+          <TouchableOpacity
+            style={styles.currentLocationButton}
+            onPress={getCurrentLocation}
+            disabled={loadingLocation}>
+            <Feather name="crosshair" size={14} color="#6a99e3" />
+            <Text style={styles.currentLocationText}>Use current location</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.formSection}>
+          <Text style={styles.formLabel}>Destination</Text>
+          <PlaceAutocompleteInput
+            placeholder="Destination"
+            icon="map-pin"
+            value={destination}
+            onPlaceSelected={(placeId, description, location) => {
+              setDestination(description);
+              setDestinationLocation(location);
+            }}
+            onChangeText={(text) => setDestination(text)}
+          />
+        </View>
+
+        <TouchableOpacity
+          onPress={handleFindRoutes}
+          disabled={loading || !startingLocation || !destinationLocation}
+          style={[
+            styles.findRouteButton,
+            (!startingLocation || !destinationLocation) && styles.findRouteButtonDisabled,
+          ]}>
+          {loading ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text style={styles.findRouteButtonText}>Find Routes</Text>
+          )}
+        </TouchableOpacity>
+
+        {(!startingLocation || !destinationLocation) && (
+          <Text style={styles.helperText}>
+            {!startingLocation && !destinationLocation
+              ? 'Please select starting point and destination'
+              : !startingLocation
+              ? 'Please select a starting point from the autocomplete'
+              : 'Please select a destination from the autocomplete'}
+          </Text>
+        )}
+      </ScrollView>
+    </>
+  );
+
+  const renderRouteStep = () => (
+    <>
+      <View style={styles.modalHeader}>
+        <TouchableOpacity onPress={handleBack}>
+          <Feather name="arrow-left" size={24} color="#222" />
+        </TouchableOpacity>
+        <Text style={styles.modalTitle}>Choose Route</Text>
+        <View style={{ width: 24 }} />
+      </View>
+
+      <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+        <Text style={styles.routesTitle}>Available Routes</Text>
+        {routes.map((transitRoute, index) => (
+          <RouteOptionCard
+            key={`route-${index}`}
+            route={transitRoute}
+            routeNumber={index + 1}
+            onSelect={() => handleRouteSelect(transitRoute)}
+          />
+        ))}
+      </ScrollView>
+    </>
+  );
+
+  const renderConfigStep = () => (
+    <>
+      <View style={styles.modalHeader}>
+        <TouchableOpacity onPress={handleBack}>
+          <Feather name={route ? 'x' : 'arrow-left'} size={24} color="#222" />
+        </TouchableOpacity>
+        <Text style={styles.modalTitle}>{route ? 'Edit Route' : 'Configure Notifications'}</Text>
+        <TouchableOpacity onPress={handleSave}>
+          <Text style={styles.saveButton}>Save</Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.formSection}>
+          <Text style={styles.formLabel}>Route Name</Text>
+          <TextInput
+            style={styles.textInput}
+            value={name}
+            onChangeText={setName}
+            placeholder="e.g., Morning Commute"
+            placeholderTextColor="#9ca3af"
+          />
+        </View>
+
+        {selectedRoute && (
+          <View style={styles.selectedRoutePreview}>
+            <Text style={styles.previewLabel}>Selected Route</Text>
+            <Text style={styles.previewText}>
+              {selectedRoute.summary || 'Transit route'}
+            </Text>
+            <Text style={styles.previewSubtext}>
+              {selectedRoute.legs?.[0]?.duration?.text || 'Unknown duration'}
+            </Text>
+          </View>
+        )}
+
+        <View style={styles.formSection}>
+          <Text style={styles.formLabel}>Departure Time</Text>
+          <TextInput
+            style={styles.textInput}
+            value={departureTime}
+            onChangeText={setDepartureTime}
+            placeholder="HH:MM"
+            placeholderTextColor="#9ca3af"
+          />
+        </View>
+
+        <View style={styles.formSection}>
+          <Text style={styles.formLabel}>Days of Week</Text>
+          <View style={styles.daysContainer}>
+            {daysAbbrev.map((day, idx) => (
+              <TouchableOpacity
+                key={idx}
+                style={[styles.dayButton, daysOfWeek[idx] && styles.dayButtonActive]}
+                onPress={() => {
+                  const newDays = [...daysOfWeek];
+                  newDays[idx] = !newDays[idx];
+                  setDaysOfWeek(newDays);
+                }}>
+                <Text style={[styles.dayButtonText, daysOfWeek[idx] && styles.dayButtonTextActive]}>
+                  {day}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.formSection}>
+          <Text style={styles.formLabel}>Advance Notice: {advanceNoticeMinutes} minutes</Text>
+          <View style={styles.timeButtonsContainer}>
+            {[15, 30, 45, 60].map(minutes => (
+              <TouchableOpacity
+                key={minutes}
+                style={[
+                  styles.timeButton,
+                  advanceNoticeMinutes === minutes && styles.timeButtonActive,
+                ]}
+                onPress={() => setAdvanceNoticeMinutes(minutes)}>
+                <Text
+                  style={[
+                    styles.timeButtonText,
+                    advanceNoticeMinutes === minutes && styles.timeButtonTextActive,
+                  ]}>
+                  {minutes}m
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.formSection}>
+          <Text style={styles.formLabel}>Walking Buffer: {bufferMinutes} minutes</Text>
+          <View style={styles.timeButtonsContainer}>
+            {[0, 5, 10, 15].map(minutes => (
+              <TouchableOpacity
+                key={minutes}
+                style={[
+                  styles.timeButton,
+                  bufferMinutes === minutes && styles.timeButtonActive,
+                ]}
+                onPress={() => setBufferMinutes(minutes)}>
+                <Text
+                  style={[
+                    styles.timeButtonText,
+                    bufferMinutes === minutes && styles.timeButtonTextActive,
+                  ]}>
+                  {minutes}m
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.formSection}>
+          <View style={styles.switchRow}>
+            <View>
+              <Text style={styles.formLabel}>Morning Briefing</Text>
+              <Text style={styles.formSubtext}>Get a summary notification in advance</Text>
+            </View>
+            <Switch
+              value={morningBriefing}
+              onValueChange={setMorningBriefing}
+              trackColor={{ false: '#d1d5db', true: '#6a99e3' }}
+              thumbColor="#fff"
+            />
+          </View>
+        </View>
+
+        <View style={styles.infoBox}>
+          <Feather name="info" size={16} color="#6a99e3" />
+          <Text style={styles.infoText}>
+            We&apos;ll calculate walking time from your location and notify you when it&apos;s time to leave!
+          </Text>
+        </View>
+      </ScrollView>
+    </>
+  );
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalContainer}>
+        {step === 'location' && renderLocationStep()}
+        {step === 'route' && renderRouteStep()}
+        {step === 'config' && renderConfigStep()}
+      </View>
+    </Modal>
+  );
+}
+
+function RouteOptionCard({ route, routeNumber, onSelect }: { route: TransitRoute; routeNumber: number; onSelect: () => void }) {
+  const leg = route.legs?.[0];
+  if (!leg) return null;
+
+  let transfers = 0;
+  const modes: string[] = [];
+
+  leg.steps?.forEach((step) => {
+    if (step.travel_mode === 'TRANSIT' && step.transit_details) {
+      const vehicleType = step.transit_details?.line?.vehicle?.type;
+      const lineName = step.transit_details?.line?.short_name || step.transit_details?.line?.name;
+      if (vehicleType === 'SUBWAY') {
+        modes.push(`Subway ${lineName || ''}`);
+      } else if (vehicleType === 'BUS') {
+        modes.push(`Bus ${lineName || ''}`);
+      } else {
+        modes.push(lineName || 'Transit');
+      }
+      transfers++;
+    }
+  });
+
+  const modesSummary = modes.length > 0 ? modes.join(' → ') : 'No transit info';
+  const transferCount = Math.max(0, transfers - 1);
+  const arrivalTime = leg.arrival_time?.text || '';
+
+  return (
+    <TouchableOpacity style={styles.routeOptionCard} onPress={onSelect}>
+      <View style={styles.routeOptionHeader}>
+        <Text style={styles.routeOptionNumber}>Route {routeNumber}</Text>
+        <View style={styles.routeOptionDuration}>
+          <Feather name="clock" size={16} color="#6a99e3" />
+          <Text style={styles.routeOptionDurationText}>{leg.duration?.text || 'Unknown'}</Text>
+        </View>
+      </View>
+      <Text style={styles.routeOptionMode} numberOfLines={2}>{modesSummary}</Text>
+      <View style={styles.routeOptionDetails}>
+        <View style={styles.routeOptionDetail}>
+          <Feather name="shuffle" size={14} color="#6b7280" />
+          <Text style={styles.routeOptionDetailText}>
+            {transferCount} {transferCount === 1 ? 'transfer' : 'transfers'}
+          </Text>
+        </View>
+        {arrivalTime && (
+          <View style={styles.routeOptionDetail}>
+            <Feather name="target" size={14} color="#6b7280" />
+            <Text style={styles.routeOptionDetailText}>Arrive {arrivalTime}</Text>
+          </View>
+        )}
+      </View>
+    </TouchableOpacity>
   );
 }
 
@@ -480,5 +1337,378 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#fff',
+  },
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  activeTab: {
+    borderBottomColor: '#6a99e3',
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#9ca3af',
+  },
+  activeTabText: {
+    color: '#6a99e3',
+    fontWeight: '600',
+  },
+  addRouteButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#6a99e3',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  routeCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginBottom: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  routeCardDisabled: {
+    opacity: 0.5,
+  },
+  routeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  routeHeaderLeft: {
+    flex: 1,
+  },
+  routeName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#222',
+    marginBottom: 4,
+  },
+  routeDays: {
+    fontSize: 13,
+    color: '#6a99e3',
+    fontWeight: '500',
+  },
+  routeDetails: {
+    gap: 8,
+    marginBottom: 12,
+  },
+  routeDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  routeDetailText: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  routeActions: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  routeActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  routeActionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6a99e3',
+  },
+  addFirstRouteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#6a99e3',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginTop: 24,
+  },
+  addFirstRouteText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    paddingTop: 60,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#222',
+  },
+  saveButton: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6a99e3',
+  },
+  modalContent: {
+    flex: 1,
+    padding: 16,
+  },
+  formSection: {
+    marginBottom: 24,
+  },
+  formLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#222',
+    marginBottom: 8,
+  },
+  formSubtext: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  formLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  linkText: {
+    fontSize: 13,
+    color: '#6a99e3',
+    fontWeight: '500',
+  },
+  textInput: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 15,
+    color: '#222',
+  },
+  daysContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  dayButton: {
+    flex: 1,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  dayButtonActive: {
+    backgroundColor: '#6a99e3',
+    borderColor: '#6a99e3',
+  },
+  dayButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  dayButtonTextActive: {
+    color: '#fff',
+  },
+  timeButtonsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  timeButton: {
+    flex: 1,
+    paddingVertical: 10,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  timeButtonActive: {
+    backgroundColor: '#6a99e3',
+    borderColor: '#6a99e3',
+  },
+  timeButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  timeButtonTextActive: {
+    color: '#fff',
+  },
+  switchRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  infoBox: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 16,
+    backgroundColor: '#e8f0f9',
+    borderRadius: 8,
+    marginTop: 8,
+    marginBottom: 32,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#6b7280',
+    lineHeight: 18,
+  },
+  inputRow: {
+    position: 'relative',
+  },
+  locationLoadingOverlay: {
+    position: 'absolute',
+    right: 12,
+    top: 12,
+  },
+  currentLocationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+  },
+  currentLocationText: {
+    fontSize: 13,
+    color: '#6a99e3',
+    fontWeight: '500',
+  },
+  findRouteButton: {
+    backgroundColor: '#6a99e3',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 24,
+  },
+  findRouteButtonDisabled: {
+    backgroundColor: '#d1d5db',
+  },
+  findRouteButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  helperText: {
+    fontSize: 13,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginTop: 12,
+  },
+  routesTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#222',
+    marginBottom: 16,
+  },
+  routeOptionCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  routeOptionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  routeOptionNumber: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#222',
+  },
+  routeOptionDuration: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e8f0f9',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 6,
+  },
+  routeOptionDurationText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#6a99e3',
+  },
+  routeOptionMode: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#222',
+    marginBottom: 12,
+  },
+  routeOptionDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  routeOptionDetail: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  routeOptionDetailText: {
+    fontSize: 13,
+    color: '#6b7280',
+  },
+  selectedRoutePreview: {
+    backgroundColor: '#e8f0f9',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 24,
+  },
+  previewLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6a99e3',
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  previewText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#222',
+    marginBottom: 4,
+  },
+  previewSubtext: {
+    fontSize: 14,
+    color: '#6b7280',
   },
 });
