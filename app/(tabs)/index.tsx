@@ -3,19 +3,17 @@ import Feather from '@expo/vector-icons/Feather';
 import * as Location from 'expo-location';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LiveTrackingView from '../../components/live-tracking-view';
-import NotificationMenu from '../../components/notification-menu';
 import PlaceAutocompleteInput from '../../components/place-autocomplete-input';
 import RouteOption from '../../components/route-option';
 import { GoogleMapsService, TransitRoute } from '../../services/google-maps-api';
@@ -34,7 +32,6 @@ export default function HomePage() {
   const [originalSelectedRoute, setOriginalSelectedRoute] = useState<TransitRoute | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingLocation, setLoadingLocation] = useState(false);
-  const [showNotificationMenu, setShowNotificationMenu] = useState(false);
 
   useEffect(() => {
     getCurrentLocation();
@@ -216,13 +213,6 @@ export default function HomePage() {
         <View>
           <View style={styles.actionWrapper}>
             <Text style={styles.title}>Ready to Speed through New York?</Text>
-            <TouchableOpacity
-              onPress={() => setShowNotificationMenu(true)}
-              style={{ marginLeft: 'auto' }}>
-              <View style={styles.action}>
-                <Feather name="bell" size={22} color="#6a99e3" />
-              </View>
-            </TouchableOpacity>
           </View>
 
           <View style={styles.inputsContainer}>
@@ -345,23 +335,6 @@ export default function HomePage() {
           </View>
         )}
       </ScrollView>
-
-      <Modal
-        visible={showNotificationMenu}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowNotificationMenu(false)}>
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#f8f9fa' }}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity
-              onPress={() => setShowNotificationMenu(false)}
-              style={styles.closeButton}>
-              <Feather name="x" size={24} color="#222" />
-            </TouchableOpacity>
-          </View>
-          <NotificationMenu />
-        </SafeAreaView>
-      </Modal>
     </SafeAreaView>
   );
 }

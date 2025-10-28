@@ -51,6 +51,8 @@ export default function TabBar({ state, descriptors, navigation }: { state: any;
         return <Feather name="clock" size={20} color={color}/>
       case "navigation":
         return <Feather name="map" size={20} color={color}/>
+      case "notifications":
+        return <Feather name="bell" size={20} color={color}/>
     }
   }
 }
@@ -158,6 +160,8 @@ function getIcon(routeName: string, color: string) {
       return <Feather name="clock" size={20} color={color}/>
     case "navigation":
       return <Feather name="map" size={20} color={color}/>
+    case "notifications":
+      return <Feather name="bell" size={20} color={color}/>
   }
 }
 const styles = StyleSheet.create({

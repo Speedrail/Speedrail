@@ -38,6 +38,12 @@ export default function TabLayout() {
                 title: 'Navigation',
               }}
             />
+            <Tabs.Screen
+              name="notifications"
+              options={{
+                title: 'Alerts',
+              }}
+            />
           </Tabs>
         </View>
       </TabBarProvider>
