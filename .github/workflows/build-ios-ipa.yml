@@ -42,13 +42,8 @@ jobs:
     - name: Install dependencies
       run: npm ci --prefer-offline --no-audit --no-fund
     
-    - name: Clear old credentials
-      run: eas credentials --platform ios --profile preview --clear-provisioning-profile --non-interactive || true
-      env:
-        EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-    
-    - name: Run EAS Build for iOS (Local)
-      run: eas build --platform ios --profile preview --local --non-interactive
+    - name: Run EAS Build for iOS (Unsigned)
+      run: eas build --platform ios --profile unsigned --local --non-interactive --skip-credentials-check
       env:
         EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
@@ -58,6 +53,11 @@ jobs:
       if: success()
       with:
         name: speedrail-ios-${{ github.sha }}
+    - name: Upload Unsigned IPA Artifact
+      uses: actions/upload-artifact@v4
+      if: success()
+      with:
+        name: speedrail-ios-unsigned-${{ github.sha }}
         path: |
           **/*.ipa
         retention-days: 5
