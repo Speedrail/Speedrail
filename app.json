@@ -51,12 +51,6 @@
             "backgroundColor": "#000000"
           }
         }
-      ],
-      [
-        "react-native-maps",
-        {
-          "googleMapsApiKey": "${GOOGLE_MAPS_API_KEY}"
-        }
       ]
     ],
     "experiments": {
