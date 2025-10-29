@@ -42,11 +42,16 @@ jobs:
     - name: Install dependencies
       run: npm ci --prefer-offline --no-audit --no-fund
     
-    - name: Run EAS Build for iOS (Unsigned)
-      run: eas build --platform ios --profile unsigned --local --non-interactive --skip-credentials-check
+    - name: Prebuild iOS project
+      run: npx expo prebuild --platform ios --clean
       env:
-        EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+    
+    - name: Build unsigned IPA with xcodebuild
+      run: |
+        cd ios
+        xcodebuild -workspace Speedrail.xcworkspace -scheme Speedrail -configuration Release -sdk iphoneos -archivePath ./build/Speedrail.xcarchive archive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+        xcodebuild -exportArchive -archivePath ./build/Speedrail.xcarchive -exportPath ./build -exportOptionsPlist exportOptions.plist
     
     - name: Upload Unsigned IPA Artifact
       uses: actions/upload-artifact@v4
@@ -54,5 +59,5 @@ jobs:
       with:
         name: speedrail-ios-unsigned-${{ github.sha }}
         path: |
-          **/*.ipa
+          ios/build/*.ipa
         retention-days: 5
