@@ -48,11 +48,6 @@ jobs:
         EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
     
-    - name: Upload IPA Artifact
-      uses: actions/upload-artifact@v4
-      if: success()
-      with:
-        name: speedrail-ios-${{ github.sha }}
     - name: Upload Unsigned IPA Artifact
       uses: actions/upload-artifact@v4
       if: success()

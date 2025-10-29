@@ -16,15 +16,7 @@
       },
       "config": {
         "googleMapsApiKey": "${GOOGLE_MAPS_API_KEY}"
-      },
-      "entitlements": {
-        "aps-environment": "production"
       }
-    },
-    "notification": {
-      "icon": "./assets/images/speedrail.png",
-      "color": "#6a99e3",
-      "iosDisplayInForeground": true
     },
     "android": {
       "icon": "./assets/images/speedrail.png",
@@ -53,14 +45,6 @@
           "dark": {
             "backgroundColor": "#000000"
           }
-        }
-      ],
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/images/speedrail.png",
-          "color": "#6a99e3",
-          "sounds": []
         }
       ]
     ],
