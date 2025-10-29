@@ -1,25 +1,29 @@
+import { Colors } from '@/constants/theme';
+import { useTheme } from '@/contexts/theme-context';
 import {
-    calculatePassSavings,
-    fetchMTAFares,
-    fetchServiceAlerts,
-    getFareCapInfo,
-    type MTAFareData,
-    type ServiceAlert
+  calculatePassSavings,
+  fetchMTAFares,
+  fetchServiceAlerts,
+  getFareCapInfo,
+  type MTAFareData,
+  type ServiceAlert
 } from '@/services/mta-api';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function TicketsPage() {
+  const { actualTheme } = useTheme();
+  const colors = Colors[actualTheme];
   const [fareData, setFareData] = useState<MTAFareData | null>(null);
   const [alerts, setAlerts] = useState<ServiceAlert[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,73 +74,79 @@ export default function TicketsPage() {
 
   if (loading) {
     return (
-      <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#fff' }}>
+      <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.background }}>
         <View style={[styles.container, styles.centered]}>
-          <ActivityIndicator size="large" color="#6a99e3" />
-          <Text style={styles.loadingText}>Loading fare information...</Text>
+          <ActivityIndicator size="large" color={colors.buttonPrimary} />
+          <Text style={[styles.loadingText, { color: colors.secondaryText }]}>Loading fare information...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#fff' }}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Fares & Tickets</Text>
-        <Text style={styles.lastUpdated}>
+    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.background }}>
+      <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
+        <Text style={[styles.title, { color: colors.text }]}>Fares & Tickets</Text>
+        <Text style={[styles.lastUpdated, { color: colors.metaText }]}>
           Last updated: {new Date(fareData?.lastUpdated || '').toLocaleTimeString()}
         </Text>
       </View>
       <ScrollView 
-        style={styles.container}
+        style={[styles.container, { backgroundColor: colors.background }]}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
         {/* Fare Capping Info */}
-        <View style={styles.fareCapCard}>
-          <Text style={styles.fareCapTitle}>IMPORTANT: Fare Capping</Text>
-          <Text style={styles.fareCapDescription}>
+        <View style={[styles.fareCapCard, { backgroundColor: colors.infoBoxBg, borderColor: colors.borderLight }]}>
+          <Text style={[styles.fareCapTitle, { color: colors.buttonPrimary }]}>IMPORTANT: Fare Capping</Text>
+          <Text style={[styles.fareCapDescription, { color: colors.text }]}>
             After {fareCapInfo.ridesUntilCap} rides in 7 days, remaining rides are free for the rest of that week
           </Text>
         </View>
 
         {alerts.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Service Alerts</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Service Alerts</Text>
             {alerts.map((alert) => (
               <View 
                 key={alert.id} 
                 style={[
                   styles.alertCard,
+                  { backgroundColor: colors.alertBackground, borderColor: colors.alertBorder },
                   alert.severity === 'critical' && styles.alertCardCritical,
+                  alert.severity === 'critical' && { backgroundColor: colors.alertCriticalBg, borderLeftColor: colors.alertCriticalBorder },
                   alert.severity === 'warning' && styles.alertCardWarning,
+                  alert.severity === 'warning' && { backgroundColor: colors.alertWarningBg, borderLeftColor: colors.alertWarningBorder },
                 ]}
               >
                 <View style={styles.alertHeader}>
                   <Text style={[
                     styles.alertTitle,
+                    { color: colors.text },
                     alert.severity === 'critical' && styles.alertTitleCritical,
+                    alert.severity === 'critical' && { color: colors.alertCriticalText },
                     alert.severity === 'warning' && styles.alertTitleWarning,
+                    alert.severity === 'warning' && { color: colors.alertWarningText },
                   ]}>
                     {alert.header}
                   </Text>
                   {alert.affectedRoutes.length > 0 && (
                     <View style={styles.routeBadges}>
                       {alert.affectedRoutes.slice(0, 3).map((route, idx) => (
-                        <View key={idx} style={styles.routeBadge}>
+                        <View key={idx} style={[styles.routeBadge, { backgroundColor: colors.buttonPrimary }]}>
                           <Text style={styles.routeBadgeText}>{route}</Text>
                         </View>
                       ))}
                       {alert.affectedRoutes.length > 3 && (
-                        <Text style={styles.moreRoutes}>+{alert.affectedRoutes.length - 3}</Text>
+                        <Text style={[styles.moreRoutes, { color: colors.secondaryText }]}>+{alert.affectedRoutes.length - 3}</Text>
                       )}
                     </View>
                   )}
                 </View>
                 {alert.description && (
-                  <Text style={styles.alertDescription} numberOfLines={3}>
+                  <Text style={[styles.alertDescription, { color: colors.secondaryText }]} numberOfLines={3}>
                     {alert.description}
                   </Text>
                 )}
@@ -157,12 +167,15 @@ export default function TicketsPage() {
               key={category}
               style={[
                 styles.categoryButton,
-                selectedCategory === category && styles.categoryButtonActive
+                { backgroundColor: colors.filterInactive, borderColor: colors.border },
+                selectedCategory === category && styles.categoryButtonActive,
+                selectedCategory === category && { backgroundColor: colors.buttonPrimary, borderColor: colors.buttonPrimary }
               ]}
               onPress={() => setSelectedCategory(category as any)}
             >
               <Text style={[
                 styles.categoryButtonText,
+                { color: colors.secondaryText },
                 selectedCategory === category && styles.categoryButtonTextActive
               ]}>
                 {category === 'all' ? 'All' : 
@@ -177,14 +190,14 @@ export default function TicketsPage() {
         {/* Fares List */}
         <View style={styles.faresContainer}>
           {filteredFares?.map((fare) => (
-            <View key={fare.id} style={styles.fareCard}>
+            <View key={fare.id} style={[styles.fareCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={styles.fareHeader}>
-                <Text style={styles.fareName}>{fare.name}</Text>
-                <Text style={styles.farePrice}>${fare.price.toFixed(2)}</Text>
+                <Text style={[styles.fareName, { color: colors.text }]}>{fare.name}</Text>
+                <Text style={[styles.farePrice, { color: colors.buttonPrimary }]}>${fare.price.toFixed(2)}</Text>
               </View>
-              <Text style={styles.fareDescription}>{fare.description}</Text>
-              <View style={styles.categoryBadge}>
-                <Text style={styles.categoryBadgeText}>
+              <Text style={[styles.fareDescription, { color: colors.secondaryText }]}>{fare.description}</Text>
+              <View style={[styles.categoryBadge, { backgroundColor: colors.buttonSecondary }]}>
+                <Text style={[styles.categoryBadgeText, { color: colors.buttonPrimary }]}>
                   {fare.category.replace('-', ' ').toUpperCase()}
                 </Text>
               </View>
@@ -194,12 +207,12 @@ export default function TicketsPage() {
 
         {/* Reduced Fares */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Reduced Fares</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Reduced Fares</Text>
           {fareData?.reducedFares.map((reduced, index) => (
-            <View key={index} style={styles.reducedFareCard}>
-              <Text style={styles.reducedFareType}>{reduced.type}</Text>
+            <View key={index} style={[styles.reducedFareCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.reducedFareType, { color: colors.text }]}>{reduced.type}</Text>
               <Text style={styles.reducedFareDiscount}>{reduced.discount}</Text>
-              <Text style={styles.reducedFareEligibility}>
+              <Text style={[styles.reducedFareEligibility, { color: colors.secondaryText }]}>
                 Eligible: {reduced.eligibility.join(', ')}
               </Text>
             </View>
@@ -208,12 +221,12 @@ export default function TicketsPage() {
 
         {/* MetroCard Bonus Info */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>MetroCard Bonus</Text>
-          <View style={styles.bonusCard}>
-            <Text style={styles.bonusText}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>MetroCard Bonus</Text>
+          <View style={[styles.bonusCard, { backgroundColor: colors.alertWarningBg, borderColor: actualTheme === 'dark' ? colors.alertWarningBorder : '#ffe9b3' }]}>
+            <Text style={[styles.bonusText, { color: colors.alertWarningText }]}>
               {fareData?.metroCardInfo.bonus}
             </Text>
-            <Text style={styles.bonusSubtext}>
+            <Text style={[styles.bonusSubtext, { color: colors.secondaryText }]}>
               Minimum purchase: ${fareData?.metroCardInfo.minimumForBonus.toFixed(2)}
             </Text>
           </View>
@@ -221,33 +234,33 @@ export default function TicketsPage() {
 
         {/* Savings Calculator */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Is an Unlimited Pass Worth It?</Text>
-          <Text style={styles.calculatorNote}>Based on 2 rides per day:</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Is an Unlimited Pass Worth It?</Text>
+          <Text style={[styles.calculatorNote, { color: colors.secondaryText }]}>Based on 2 rides per day:</Text>
           
-          <View style={styles.savingsCard}>
-            <Text style={styles.savingsTitle}>7-Day Pass</Text>
-            <Text style={styles.savingsAmount}>
+          <View style={[styles.savingsCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.savingsTitle, { color: colors.text }]}>7-Day Pass</Text>
+            <Text style={[styles.savingsAmount, { color: colors.secondaryText }]}>
               Pay-per-ride: ${savings7Day.payPerRide.toFixed(2)}
             </Text>
-            <Text style={styles.savingsAmount}>
+            <Text style={[styles.savingsAmount, { color: colors.secondaryText }]}>
               Unlimited: ${savings7Day.unlimitedPass.toFixed(2)}
             </Text>
-            <Text style={[styles.savingsRecommendation, savings7Day.savings > 0 && styles.savingsPositive]}>
+            <Text style={[styles.savingsRecommendation, { color: colors.secondaryText }, savings7Day.savings > 0 && styles.savingsPositive]}>
               {savings7Day.savings > 0 
                 ? `Save $${savings7Day.savings.toFixed(2)} with unlimited pass`
                 : `Pay-per-ride is cheaper`}
             </Text>
           </View>
 
-          <View style={styles.savingsCard}>
-            <Text style={styles.savingsTitle}>30-Day Pass</Text>
-            <Text style={styles.savingsAmount}>
+          <View style={[styles.savingsCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.savingsTitle, { color: colors.text }]}>30-Day Pass</Text>
+            <Text style={[styles.savingsAmount, { color: colors.secondaryText }]}>
               Pay-per-ride: ${savings30Day.payPerRide.toFixed(2)}
             </Text>
-            <Text style={styles.savingsAmount}>
+            <Text style={[styles.savingsAmount, { color: colors.secondaryText }]}>
               Unlimited: ${savings30Day.unlimitedPass.toFixed(2)}
             </Text>
-            <Text style={[styles.savingsRecommendation, savings30Day.savings > 0 && styles.savingsPositive]}>
+            <Text style={[styles.savingsRecommendation, { color: colors.secondaryText }, savings30Day.savings > 0 && styles.savingsPositive]}>
               {savings30Day.savings > 0 
                 ? `Save $${savings30Day.savings.toFixed(2)} with unlimited pass`
                 : `Pay-per-ride is cheaper`}
@@ -263,7 +276,6 @@ export default function TicketsPage() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   scrollContent: {
     paddingBottom: 100,
@@ -275,64 +287,49 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 16,
-    color: '#666',
   },
   header: {
     paddingHorizontal: 24,
     paddingTop: 16,
     paddingBottom: 20,
-    backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: '#e8ecf1',
   },
   title: {
     fontSize: 27,
     fontWeight: '700',
-    color: '#222',
     marginBottom: 4,
   },
   lastUpdated: {
     fontSize: 12,
-    color: '#9eadba',
   },
   fareCapCard: {
     marginHorizontal: 16,
     marginTop: 16,
     marginBottom: 12,
     padding: 16,
-    backgroundColor: '#f0f9ff',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#bae6fd',
   },
   fareCapTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#0369a1',
     marginBottom: 6,
   },
   fareCapDescription: {
     fontSize: 14,
-    color: '#075985',
     lineHeight: 20,
   },
   alertCard: {
-    backgroundColor: '#fff',
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#e8ecf1',
   },
   alertCardWarning: {
     borderLeftWidth: 4,
-    borderLeftColor: '#f59e0b',
-    backgroundColor: '#fffbf0',
   },
   alertCardCritical: {
     borderLeftWidth: 4,
-    borderLeftColor: '#ef4444',
-    backgroundColor: '#fff5f5',
   },
   alertHeader: {
     marginBottom: 8,
@@ -340,18 +337,14 @@ const styles = StyleSheet.create({
   alertTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#222',
     marginBottom: 6,
   },
   alertTitleWarning: {
-    color: '#d97706',
   },
   alertTitleCritical: {
-    color: '#dc2626',
   },
   alertDescription: {
     fontSize: 14,
-    color: '#556070',
     lineHeight: 20,
   },
   routeBadges: {
@@ -361,7 +354,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   routeBadge: {
-    backgroundColor: '#6a99e3',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 4,
@@ -373,7 +365,6 @@ const styles = StyleSheet.create({
   },
   moreRoutes: {
     fontSize: 12,
-    color: '#556070',
     fontWeight: '500',
     alignSelf: 'center',
   },
@@ -388,19 +379,14 @@ const styles = StyleSheet.create({
   categoryButton: {
     paddingHorizontal: 20,
     paddingVertical: 10,
-    backgroundColor: '#f3f4f6',
     borderRadius: 20,
     marginRight: 8,
     borderWidth: 1,
-    borderColor: '#e8ecf1',
   },
   categoryButtonActive: {
-    backgroundColor: '#6a99e3',
-    borderColor: '#6a99e3',
   },
   categoryButtonText: {
     fontSize: 14,
-    color: '#556070',
     fontWeight: '600',
   },
   categoryButtonTextActive: {
@@ -410,12 +396,10 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   fareCard: {
-    backgroundColor: '#fff',
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#e8ecf1',
   },
   fareHeader: {
     flexDirection: 'row',
@@ -426,23 +410,19 @@ const styles = StyleSheet.create({
   fareName: {
     fontSize: 17,
     fontWeight: '600',
-    color: '#222',
     flex: 1,
   },
   farePrice: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#6a99e3',
   },
   fareDescription: {
     fontSize: 14,
-    color: '#556070',
     marginBottom: 8,
     lineHeight: 20,
   },
   categoryBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: '#f0f5ff',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -450,7 +430,6 @@ const styles = StyleSheet.create({
   categoryBadgeText: {
     fontSize: 10,
     fontWeight: '600',
-    color: '#6a99e3',
     textTransform: 'uppercase',
   },
   section: {
@@ -460,22 +439,18 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#222',
     marginBottom: 12,
     marginTop: 8,
   },
   reducedFareCard: {
-    backgroundColor: '#fff',
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#e8ecf1',
   },
   reducedFareType: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#222',
     marginBottom: 4,
   },
   reducedFareDiscount: {
@@ -486,54 +461,43 @@ const styles = StyleSheet.create({
   },
   reducedFareEligibility: {
     fontSize: 13,
-    color: '#556070',
     lineHeight: 18,
   },
   bonusCard: {
-    backgroundColor: '#fffbf0',
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#ffe9b3',
   },
   bonusText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#d97706',
     marginBottom: 4,
   },
   bonusSubtext: {
     fontSize: 13,
-    color: '#556070',
   },
   calculatorNote: {
     fontSize: 13,
-    color: '#556070',
     marginBottom: 12,
   },
   savingsCard: {
-    backgroundColor: '#fff',
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#e8ecf1',
   },
   savingsTitle: {
     fontSize: 17,
     fontWeight: '600',
-    color: '#222',
     marginBottom: 8,
   },
   savingsAmount: {
     fontSize: 14,
-    color: '#556070',
     marginBottom: 4,
   },
   savingsRecommendation: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#556070',
     marginTop: 8,
   },
   savingsPositive: {

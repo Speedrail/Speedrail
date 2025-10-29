@@ -1,6 +1,8 @@
 import { MapView, Marker, PROVIDER_GOOGLE, Region } from '@/components/map-view-wrapper';
 import StationDetail from '@/components/station-detail';
+import { Colors } from '@/constants/theme';
 import { useTabBar } from '@/contexts/tab-bar-context';
+import { useTheme } from '@/contexts/theme-context';
 import {
   fetchAllTransitStations,
   fetchBusStops,
@@ -113,6 +115,8 @@ const CustomMarker = React.memo(({
 CustomMarker.displayName = 'CustomMarker';
 
 export default function NavigationPage() {
+  const { actualTheme } = useTheme();
+  const colors = Colors[actualTheme];
   const [showParameters, setShowParameters] = useState(false);
   const [stopFilter, setStopFilter] = useState<string>('');
   const [fareFilter, setFareFilter] = useState<number>(30);
@@ -133,6 +137,7 @@ export default function NavigationPage() {
     latitude: number;
     longitude: number;
   } | null>(null);
+  const [mapStyle, setMapStyle] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedFilter, setSelectedFilter] = useState<TransitType | 'all'>('all');
   const [allStations, setAllStations] = useState<TransitStation[]>([]);
@@ -148,6 +153,93 @@ export default function NavigationPage() {
   useEffect(() => {
     setBusApiKey(process.env.EXPO_PUBLIC_MTA_BUS_API_KEY || '');
   }, []);
+
+  useEffect(() => {
+    if (actualTheme === 'dark') {
+      setMapStyle([
+        { elementType: 'geometry', stylers: [{ color: '#1a1a1a' }] },
+        { elementType: 'labels.text.stroke', stylers: [{ color: '#1a1a1a' }] },
+        { elementType: 'labels.text.fill', stylers: [{ color: '#8a8a8a' }] },
+        {
+          featureType: 'administrative.locality',
+          elementType: 'labels.text.fill',
+          stylers: [{ color: '#a8a8a8' }],
+        },
+        {
+          featureType: 'poi',
+          elementType: 'labels.text.fill',
+          stylers: [{ color: '#6a6a6a' }],
+        },
+        {
+          featureType: 'poi.park',
+          elementType: 'geometry',
+          stylers: [{ color: '#263c3f' }],
+        },
+        {
+          featureType: 'poi.park',
+          elementType: 'labels.text.fill',
+          stylers: [{ color: '#6b9a76' }],
+        },
+        {
+          featureType: 'road',
+          elementType: 'geometry',
+          stylers: [{ color: '#2c2c2c' }],
+        },
+        {
+          featureType: 'road',
+          elementType: 'geometry.stroke',
+          stylers: [{ color: '#212121' }],
+        },
+        {
+          featureType: 'road',
+          elementType: 'labels.text.fill',
+          stylers: [{ color: '#9ca5b3' }],
+        },
+        {
+          featureType: 'road.highway',
+          elementType: 'geometry',
+          stylers: [{ color: '#3c3c3c' }],
+        },
+        {
+          featureType: 'road.highway',
+          elementType: 'geometry.stroke',
+          stylers: [{ color: '#1f1f1f' }],
+        },
+        {
+          featureType: 'road.highway',
+          elementType: 'labels.text.fill',
+          stylers: [{ color: '#b0b0b0' }],
+        },
+        {
+          featureType: 'transit',
+          elementType: 'geometry',
+          stylers: [{ color: '#2f3948' }],
+        },
+        {
+          featureType: 'transit.station',
+          elementType: 'labels.text.fill',
+          stylers: [{ color: '#a0a0a0' }],
+        },
+        {
+          featureType: 'water',
+          elementType: 'geometry',
+          stylers: [{ color: '#17263c' }],
+        },
+        {
+          featureType: 'water',
+          elementType: 'labels.text.fill',
+          stylers: [{ color: '#515c6d' }],
+        },
+        {
+          featureType: 'water',
+          elementType: 'labels.text.stroke',
+          stylers: [{ color: '#17263c' }],
+        },
+      ]);
+    } else {
+      setMapStyle([]);
+    }
+  }, [actualTheme]);
 
   const loadTransitData = useCallback(async () => {
     try {
@@ -491,63 +583,65 @@ export default function NavigationPage() {
       onPress={() => handleFilterChange(item.key)}
       style={[
         styles.filterButton,
-        selectedFilter === item.key && styles.filterButtonActive,
+        { backgroundColor: colors.filterInactive },
+        selectedFilter === item.key && [styles.filterButtonActive, { backgroundColor: colors.filterActive }],
       ]}>
       <MaterialCommunityIcons
         name={item.icon as any}
         size={20}
-        color={selectedFilter === item.key ? '#fff' : '#6a99e3'}
+        color={selectedFilter === item.key ? '#fff' : colors.tint}
       />
       <Text
         style={[
           styles.filterButtonText,
+          { color: colors.tint },
           selectedFilter === item.key && styles.filterButtonTextActive,
         ]}>
         {item.label}
       </Text>
     </TouchableOpacity>
-  ), [selectedFilter, handleFilterChange]);
+  ), [selectedFilter, handleFilterChange, colors]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <BottomSheetModalProvider>
-        <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#fff' }}>
-          <View style={styles.container}>
+        <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.background }}>
+          <View style={[styles.container, { backgroundColor: colors.background }]}>
             <View style={styles.header}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.title}>Navigation</Text>
-                <Text style={styles.subtitle}>
+                <Text style={[styles.title, { color: colors.text }]}>Navigation</Text>
+                <Text style={[styles.subtitle, { color: colors.secondaryText }]}>
                   {dataLoading ? 'Loading...' : `${filteredStations.length} stations nearby`}
                 </Text>
                 {(accessibilityFilter !== 'all' || alertFilter !== 'all' || fareFilter < 30 || stopFilter.length > 0) && (
                   <View style={styles.activeFiltersContainer}>
                     {accessibilityFilter !== 'all' && (
-                      <View style={styles.activeFilterBadge}>
-                        <MaterialCommunityIcons name="wheelchair-accessibility" size={12} color="#6a99e3" />
+                      <View style={[styles.activeFilterBadge, { backgroundColor: colors.filterInactive }]}>
+                        <MaterialCommunityIcons name="wheelchair-accessibility" size={12} color={colors.tint} />
                       </View>
                     )}
                     {alertFilter !== 'all' && (
-                      <View style={styles.activeFilterBadge}>
-                        <MaterialCommunityIcons name="alert-circle" size={12} color="#6a99e3" />
+                      <View style={[styles.activeFilterBadge, { backgroundColor: colors.filterInactive }]}>
+                        <MaterialCommunityIcons name="alert-circle" size={12} color={colors.tint} />
                       </View>
                     )}
                     {fareFilter < 30 && (
-                      <View style={styles.activeFilterBadge}>
-                        <MaterialCommunityIcons name="cash" size={12} color="#6a99e3" />
+                      <View style={[styles.activeFilterBadge, { backgroundColor: colors.filterInactive }]}>
+                        <MaterialCommunityIcons name="cash" size={12} color={colors.tint} />
                       </View>
                     )}
                     {stopFilter.length > 0 && (
-                      <View style={styles.activeFilterBadge}>
-                        <Feather name="search" size={12} color="#6a99e3" />
+                      <View style={[styles.activeFilterBadge, { backgroundColor: colors.filterInactive }]}>
+                        <Feather name="search" size={12} color={colors.tint} />
                       </View>
                     )}
                   </View>
                 )}
               </View>
               <TouchableOpacity
-                style={styles.parametersButton}
+                style={[styles.parametersButton, { backgroundColor: colors.filterInactive }]}
                 onPress={() => setShowParameters(true)}>
-                <Feather name="settings" size={24} color="#6a99e3" />
+                <Feather name="settings" size={24} color={colors.tint} />
               </TouchableOpacity>
             </View>
 
@@ -564,10 +658,10 @@ export default function NavigationPage() {
             />
 
             {userLocation && (
-              <View style={styles.distanceFilterContainer}>
+              <View style={[styles.distanceFilterContainer, { backgroundColor: colors.surfaceSecondary, borderBottomColor: colors.border }]}>
                 <View style={styles.distanceHeader}>
-                  <MaterialCommunityIcons name="map-marker-distance" size={20} color="#6a99e3" />
-                  <Text style={styles.distanceLabel}>Distance: {tempDistanceFilter.toFixed(1)} miles</Text>
+                  <MaterialCommunityIcons name="map-marker-distance" size={20} color={colors.tint} />
+                  <Text style={[styles.distanceLabel, { color: colors.text }]}>Distance: {tempDistanceFilter.toFixed(1)} miles</Text>
                 </View>
                 <Slider
                   style={styles.slider}
@@ -576,33 +670,34 @@ export default function NavigationPage() {
                   step={0.5}
                   value={tempDistanceFilter}
                   onValueChange={handleDistanceChange}
-                  minimumTrackTintColor="#6a99e3"
-                  maximumTrackTintColor="#e8f0f9"
-                  thumbTintColor="#6a99e3"
+                  minimumTrackTintColor={colors.tint}
+                  maximumTrackTintColor={actualTheme === 'dark' ? '#334155' : '#e8f0f9'}
+                  thumbTintColor={colors.tint}
                 />
                 <View style={styles.distanceLabels}>
-                  <Text style={styles.distanceMinMax}>0.5 mi</Text>
-                  <Text style={styles.distanceMinMax}>30 mi</Text>
+                  <Text style={[styles.distanceMinMax, { color: colors.secondaryText }]}>0.5 mi</Text>
+                  <Text style={[styles.distanceMinMax, { color: colors.secondaryText }]}>30 mi</Text>
                 </View>
               </View>
             )}
 
             {loading || dataLoading ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#6a99e3" />
-                <Text style={styles.loadingText}>Loading map...</Text>
+                <ActivityIndicator size="large" color={colors.tint} />
+                <Text style={[styles.loadingText, { color: colors.secondaryText }]}>Loading map...</Text>
               </View>
             ) : (
               <MapView
                 ref={mapRef}
                 style={styles.map}
                 provider={PROVIDER_GOOGLE}
+                customMapStyle={mapStyle}
                 initialRegion={initialRegion}
                 showsUserLocation
                 showsMyLocationButton
                 showsCompass
                 loadingEnabled
-                loadingIndicatorColor="#6a99e3"
+                loadingIndicatorColor={colors.tint}
                 moveOnMarkerPress={false}
                 toolbarEnabled={false}
                 rotateEnabled={false}
@@ -621,30 +716,30 @@ export default function NavigationPage() {
               </MapView>
             )}
 
-            <View style={styles.legendContainer}>
+            <View style={[styles.legendContainer, { backgroundColor: actualTheme === 'dark' ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)' }]}>
               <View style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: '#6a99e3' }]} />
-                <Text style={styles.legendText}>Subway</Text>
+                <Text style={[styles.legendText, { color: colors.text }]}>Subway</Text>
               </View>
               <View style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: '#FF9800' }]} />
-                <Text style={styles.legendText}>LIRR</Text>
+                <Text style={[styles.legendText, { color: colors.text }]}>LIRR</Text>
               </View>
               <View style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: '#E91E63' }]} />
-                <Text style={styles.legendText}>M-N</Text>
+                <Text style={[styles.legendText, { color: colors.text }]}>M-N</Text>
               </View>
               <View style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: '#00BCD4' }]} />
-                <Text style={styles.legendText}>Ferry</Text>
+                <Text style={[styles.legendText, { color: colors.text }]}>Ferry</Text>
               </View>
               <View style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: '#9C27B0' }]} />
-                <Text style={styles.legendText}>SIR</Text>
+                <Text style={[styles.legendText, { color: colors.text }]}>SIR</Text>
               </View>
               <View style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: '#4CAF50' }]} />
-                <Text style={styles.legendText}>Bus</Text>
+                <Text style={[styles.legendText, { color: colors.text }]}>Bus</Text>
               </View>
             </View>
           </View>
@@ -657,8 +752,8 @@ export default function NavigationPage() {
           backdropComponent={renderBackdrop}
           enablePanDownToClose={true}
           onDismiss={handleSheetDismiss}
-          handleIndicatorStyle={{ backgroundColor: '#ccc' }}
-          backgroundStyle={{ backgroundColor: '#fff' }}>
+          handleIndicatorStyle={{ backgroundColor: actualTheme === 'dark' ? '#64748B' : '#ccc' }}
+          backgroundStyle={{ backgroundColor: colors.surface }}>
           <BottomSheetScrollView>
             <StationDetail stationInfo={stationInfo} loading={stationLoading} />
           </BottomSheetScrollView>
@@ -669,32 +764,32 @@ export default function NavigationPage() {
           animationType="slide"
           presentationStyle="pageSheet"
           onRequestClose={() => setShowParameters(false)}>
-          <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
-            <View style={styles.parametersContainer}>
-              <View style={styles.parametersHeader}>
-                <Text style={styles.parametersTitle}>Filter Stations</Text>
+          <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+            <View style={[styles.parametersContainer, { backgroundColor: colors.background }]}>
+              <View style={[styles.parametersHeader, { borderBottomColor: colors.border }]}>
+                <Text style={[styles.parametersTitle, { color: colors.text }]}>Filter Stations</Text>
                 <TouchableOpacity
                   style={styles.parametersCloseButton}
                   onPress={() => setShowParameters(false)}>
-                  <Feather name="x" size={24} color="#222" />
+                  <Feather name="x" size={24} color={colors.text} />
                 </TouchableOpacity>
               </View>
               
-              <View style={styles.parametersContent}>
+              <View style={[styles.parametersContent, { backgroundColor: colors.background }]}>
                 <View style={styles.filterSection}>
-                  <Text style={styles.filterSectionTitle}>Search by Name</Text>
-                  <View style={styles.searchInputContainer}>
-                    <Feather name="search" size={18} color="#687076" style={styles.searchIcon} />
+                  <Text style={[styles.filterSectionTitle, { color: colors.text }]}>Search by Name</Text>
+                  <View style={[styles.searchInputContainer, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
+                    <Feather name="search" size={18} color={colors.icon} style={styles.searchIcon} />
                     <TextInput
-                      style={styles.searchInput}
+                      style={[styles.searchInput, { color: colors.text }]}
                       placeholder="Search stations..."
                       value={stopFilter}
                       onChangeText={setStopFilter}
-                      placeholderTextColor="#9ca3af"
+                      placeholderTextColor={colors.metaText}
                     />
                     {stopFilter.length > 0 && (
                       <TouchableOpacity onPress={() => setStopFilter('')} style={styles.clearButton}>
-                        <Feather name="x-circle" size={18} color="#687076" />
+                        <Feather name="x-circle" size={18} color={colors.icon} />
                       </TouchableOpacity>
                     )}
                   </View>
@@ -702,8 +797,8 @@ export default function NavigationPage() {
 
                 <View style={styles.filterSection}>
                   <View style={styles.filterSectionHeader}>
-                    <MaterialCommunityIcons name="wheelchair-accessibility" size={20} color="#222" />
-                    <Text style={styles.filterSectionTitle}>Accessibility</Text>
+                    <MaterialCommunityIcons name="wheelchair-accessibility" size={20} color={colors.text} />
+                    <Text style={[styles.filterSectionTitle, { color: colors.text }]}>Accessibility</Text>
                   </View>
                   <View style={styles.filterOptions}>
                     {[
@@ -716,17 +811,19 @@ export default function NavigationPage() {
                         activeOpacity={0.7}
                         style={[
                           styles.filterOption,
-                          accessibilityFilter === option.key && styles.filterOptionActive
+                          { backgroundColor: colors.filterInactive },
+                          accessibilityFilter === option.key && [styles.filterOptionActive, { backgroundColor: colors.filterActive }]
                         ]}
                         onPress={() => setAccessibilityFilter(option.key as any)}>
                         <View style={styles.filterOptionContent}>
                           <MaterialCommunityIcons 
                             name={option.icon as any} 
                             size={16} 
-                            color={accessibilityFilter === option.key ? '#fff' : '#6a99e3'} 
+                            color={accessibilityFilter === option.key ? '#fff' : colors.tint} 
                           />
                           <Text style={[
                             styles.filterOptionText,
+                            { color: colors.tint },
                             accessibilityFilter === option.key && styles.filterOptionTextActive
                           ]}>
                             {option.label}
@@ -739,8 +836,8 @@ export default function NavigationPage() {
 
                 <View style={styles.filterSection}>
                   <View style={styles.filterSectionHeader}>
-                    <MaterialCommunityIcons name="cash" size={20} color="#222" />
-                    <Text style={styles.filterSectionTitle}>Maximum Fare: ${fareFilter.toFixed(2)}</Text>
+                    <MaterialCommunityIcons name="cash" size={20} color={colors.text} />
+                    <Text style={[styles.filterSectionTitle, { color: colors.text }]}>Maximum Fare: ${fareFilter.toFixed(2)}</Text>
                   </View>
                   <View style={styles.sliderContainer}>
                     <Slider
@@ -750,21 +847,21 @@ export default function NavigationPage() {
                       step={0.5}
                       value={fareFilter}
                       onValueChange={handleFareChange}
-                      minimumTrackTintColor="#6a99e3"
-                      maximumTrackTintColor="#e8f0f9"
-                      thumbTintColor="#6a99e3"
+                      minimumTrackTintColor={colors.tint}
+                      maximumTrackTintColor={actualTheme === 'dark' ? '#334155' : '#e8f0f9'}
+                      thumbTintColor={colors.tint}
                     />
                     <View style={styles.fareLabels}>
-                      <Text style={styles.fareMin}>$0.00</Text>
-                      <Text style={styles.fareMax}>$30.00</Text>
+                      <Text style={[styles.fareMin, { color: colors.secondaryText }]}>$0.00</Text>
+                      <Text style={[styles.fareMax, { color: colors.secondaryText }]}>$30.00</Text>
                     </View>
                   </View>
                 </View>
 
                 <View style={styles.filterSection}>
                   <View style={styles.filterSectionHeader}>
-                    <MaterialCommunityIcons name="alert-circle-outline" size={20} color="#222" />
-                    <Text style={styles.filterSectionTitle}>Service Alerts</Text>
+                    <MaterialCommunityIcons name="alert-circle-outline" size={20} color={colors.text} />
+                    <Text style={[styles.filterSectionTitle, { color: colors.text }]}>Service Alerts</Text>
                   </View>
                   <View style={styles.filterOptions}>
                     {[
@@ -777,17 +874,19 @@ export default function NavigationPage() {
                         activeOpacity={0.7}
                         style={[
                           styles.filterOption,
-                          alertFilter === option.key && styles.filterOptionActive
+                          { backgroundColor: colors.filterInactive },
+                          alertFilter === option.key && [styles.filterOptionActive, { backgroundColor: colors.filterActive }]
                         ]}
                         onPress={() => setAlertFilter(option.key as any)}>
                         <View style={styles.filterOptionContent}>
                           <MaterialCommunityIcons 
                             name={option.icon as any} 
                             size={16} 
-                            color={alertFilter === option.key ? '#fff' : '#6a99e3'} 
+                            color={alertFilter === option.key ? '#fff' : colors.tint} 
                           />
                           <Text style={[
                             styles.filterOptionText,
+                            { color: colors.tint },
                             alertFilter === option.key && styles.filterOptionTextActive
                           ]}>
                             {option.label}
@@ -799,7 +898,7 @@ export default function NavigationPage() {
                 </View>
 
                 <TouchableOpacity 
-                  style={styles.resetButton}
+                  style={[styles.resetButton, { backgroundColor: colors.filterInactive }]}
                   onPress={() => {
                     setStopFilter('');
                     setFareFilter(30);
@@ -808,8 +907,8 @@ export default function NavigationPage() {
                     setDistanceFilter(1);
                     setTempDistanceFilter(1);
                   }}>
-                  <MaterialCommunityIcons name="refresh" size={20} color="#6a99e3" />
-                  <Text style={styles.resetButtonText}>Reset All Filters</Text>
+                  <MaterialCommunityIcons name="refresh" size={20} color={colors.tint} />
+                  <Text style={[styles.resetButtonText, { color: colors.tint }]}>Reset All Filters</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -823,7 +922,6 @@ export default function NavigationPage() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   header: {
     padding: 24,
@@ -835,13 +933,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 27,
     fontWeight: '700',
-    color: '#222',
     textAlign: 'left',
     flexWrap: 'wrap',
   },
   subtitle: {
     fontSize: 14,
-    color: '#687076',
     marginTop: 4,
   },
   filterContainer: {
@@ -859,16 +955,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#e8f0f9',
     marginRight: 8,
   },
   filterButtonActive: {
-    backgroundColor: '#6a99e3',
   },
   filterButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6a99e3',
   },
   filterButtonTextActive: {
     color: '#fff',
@@ -876,9 +969,7 @@ const styles = StyleSheet.create({
   distanceFilterContainer: {
     paddingHorizontal: 24,
     paddingVertical: 12,
-    backgroundColor: '#f8f9fa',
     borderBottomWidth: 1,
-    borderBottomColor: '#e8f0f9',
   },
   distanceHeader: {
     flexDirection: 'row',
@@ -889,7 +980,6 @@ const styles = StyleSheet.create({
   distanceLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#222',
   },
   slider: {
     width: '100%',
@@ -902,7 +992,6 @@ const styles = StyleSheet.create({
   },
   distanceMinMax: {
     fontSize: 11,
-    color: '#687076',
   },
   map: {
     flex: 1,
@@ -915,7 +1004,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    color: '#687076',
   },
   markerContainer: {
     width: 28,
@@ -933,7 +1021,6 @@ const styles = StyleSheet.create({
     right: 16,
     flexDirection: 'row',
     justifyContent: 'space-around',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderRadius: 12,
     padding: 12,
     shadowColor: '#000',
@@ -954,7 +1041,6 @@ const styles = StyleSheet.create({
   },
   legendText: {
     fontSize: 11,
-    color: '#222',
     fontWeight: '500',
   },
   parametersButton: {
@@ -964,7 +1050,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 14,
-    backgroundColor: '#e8f0f9',
   },
   btnText: {
     fontSize: 17,
@@ -979,19 +1064,16 @@ const styles = StyleSheet.create({
   parametersTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#222',
   },
   parametersContent: {
     flex: 1,
     padding: 24,
-    backgroundColor: '#fff',
   },
   parametersHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
     paddingBottom: 16,
   },
   parametersCloseButton: {
@@ -1010,7 +1092,6 @@ const styles = StyleSheet.create({
   filterSectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#222',
     marginBottom: 12,
   },
   filterOptions: {
@@ -1022,18 +1103,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#e8f0f9',
     borderWidth: 1,
     borderColor: 'transparent',
   },
   filterOptionActive: {
-    backgroundColor: '#6a99e3',
-    borderColor: '#6a99e3',
+    borderColor: 'transparent',
   },
   filterOptionText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#6a99e3',
   },
   filterOptionTextActive: {
     color: '#fff',
@@ -1043,7 +1121,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     fontSize: 16,
-    color: '#222',
   },
   distanceFilterInfo: {
     padding: 16,
@@ -1070,11 +1147,9 @@ const styles = StyleSheet.create({
   },
   fareMin: {
     fontSize: 11,
-    color: '#687076',
   },
   fareMax: {
     fontSize: 11,
-    color: '#687076',
   },
   filterOptionContent: {
     flexDirection: 'row',
@@ -1084,10 +1159,8 @@ const styles = StyleSheet.create({
   searchInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e8f0f9',
     paddingHorizontal: 12,
   },
   searchIcon: {
@@ -1112,14 +1185,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     padding: 16,
-    backgroundColor: '#e8f0f9',
     borderRadius: 12,
     marginTop: 8,
   },
   resetButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#6a99e3',
   },
   activeFiltersContainer: {
     flexDirection: 'row',
@@ -1127,7 +1198,6 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   activeFilterBadge: {
-    backgroundColor: '#e8f0f9',
     borderRadius: 12,
     padding: 4,
     paddingHorizontal: 8,

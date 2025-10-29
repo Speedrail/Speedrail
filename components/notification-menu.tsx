@@ -7,19 +7,21 @@ import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
+import { Colors } from '../constants/theme';
+import { useTheme } from '../contexts/theme-context';
 import { GoogleMapsService, TransitRoute } from '../services/google-maps-api';
 import { fetchServiceAlerts, ServiceAlert } from '../services/mta-api';
 import PlaceAutocompleteInput from './place-autocomplete-input';
@@ -62,6 +64,8 @@ Notifications.setNotificationHandler({
 });
 
 export default function NotificationMenu() {
+  const { actualTheme } = useTheme();
+  const colors = Colors[actualTheme];
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [expoPushToken, setExpoPushToken] = useState('');
   const [channels, setChannels] = useState<Notifications.NotificationChannel[]>([]);
@@ -500,7 +504,7 @@ export default function NotificationMenu() {
 
   const renderNotification = ({ item }: { item: NotificationItem }) => (
     <TouchableOpacity
-      style={[styles.notificationCard, !item.read && styles.unreadCard]}
+      style={[styles.notificationCard, { backgroundColor: colors.surface }, !item.read && styles.unreadCard, !item.read && { borderLeftColor: colors.unreadIndicator }]}
       onPress={() => markAsRead(item.id)}
       activeOpacity={0.7}>
       <View style={styles.notificationContent}>
@@ -510,16 +514,16 @@ export default function NotificationMenu() {
 
         <View style={styles.textContainer}>
           <View style={styles.headerRow}>
-            <Text style={styles.notificationTitle}>{item.title}</Text>
-            {!item.read && <View style={styles.unreadDot} />}
+            <Text style={[styles.notificationTitle, { color: colors.text }]}>{item.title}</Text>
+            {!item.read && <View style={[styles.unreadDot, { backgroundColor: colors.unreadIndicator }]} />}
           </View>
-          <Text style={styles.notificationMessage} numberOfLines={2}>
+          <Text style={[styles.notificationMessage, { color: colors.secondaryText }]} numberOfLines={2}>
             {item.message}
           </Text>
           <View style={styles.metaRow}>
-            <Text style={styles.timestamp}>{formatTimestamp(item.timestamp)}</Text>
+            <Text style={[styles.timestamp, { color: colors.metaText }]}>{formatTimestamp(item.timestamp)}</Text>
             {item.routeInfo && (
-              <Text style={styles.routeInfo}>{item.routeInfo}</Text>
+              <Text style={[styles.routeInfo, { color: colors.buttonPrimary, backgroundColor: colors.buttonSecondary }]}>{item.routeInfo}</Text>
             )}
           </View>
         </View>
@@ -528,7 +532,7 @@ export default function NotificationMenu() {
           style={styles.deleteButton}
           onPress={() => deleteNotification(item.id)}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Feather name="x" size={18} color="#9ca3af" />
+          <Feather name="x" size={18} color={colors.metaText} />
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
@@ -544,54 +548,54 @@ export default function NotificationMenu() {
       .join(', ');
 
     return (
-      <View style={[styles.routeCard, !item.enabled && styles.routeCardDisabled]}>
+      <View style={[styles.routeCard, { backgroundColor: colors.surface, borderColor: colors.border }, !item.enabled && styles.routeCardDisabled]}>
         <View style={styles.routeHeader}>
           <View style={styles.routeHeaderLeft}>
-            <Text style={styles.routeName}>{item.name}</Text>
-            <Text style={styles.routeDays}>{activeDays}</Text>
+            <Text style={[styles.routeName, { color: colors.text }]}>{item.name}</Text>
+            <Text style={[styles.routeDays, { color: colors.buttonPrimary }]}>{activeDays}</Text>
           </View>
           <Switch
             value={item.enabled}
             onValueChange={() => toggleRouteEnabled(item.id)}
-            trackColor={{ false: '#d1d5db', true: '#6a99e3' }}
+            trackColor={{ false: colors.inputBorder, true: colors.buttonPrimary }}
             thumbColor="#fff"
           />
         </View>
 
         <View style={styles.routeDetails}>
           <View style={styles.routeDetailRow}>
-            <Feather name="map-pin" size={14} color="#6b7280" />
-            <Text style={styles.routeDetailText}>{item.destination}</Text>
+            <Feather name="map-pin" size={14} color={colors.secondaryText} />
+            <Text style={[styles.routeDetailText, { color: colors.secondaryText }]}>{item.destination}</Text>
           </View>
           <View style={styles.routeDetailRow}>
-            <Feather name="clock" size={14} color="#6b7280" />
-            <Text style={styles.routeDetailText}>
+            <Feather name="clock" size={14} color={colors.secondaryText} />
+            <Text style={[styles.routeDetailText, { color: colors.secondaryText }]}>
               Depart at {item.departureTime} ({item.advanceNoticeMinutes} min notice)
             </Text>
           </View>
           <View style={styles.routeDetailRow}>
-            <Feather name="navigation" size={14} color="#6b7280" />
-            <Text style={styles.routeDetailText}>
+            <Feather name="navigation" size={14} color={colors.secondaryText} />
+            <Text style={[styles.routeDetailText, { color: colors.secondaryText }]}>
               {item.trainLines.join(', ')} • {item.bufferMinutes} min buffer
             </Text>
           </View>
         </View>
 
-        <View style={styles.routeActions}>
+        <View style={[styles.routeActions, { borderTopColor: colors.border }]}>
           <TouchableOpacity
             style={styles.routeActionButton}
             onPress={() => {
               setEditingRoute(item);
               setShowRouteModal(true);
             }}>
-            <Feather name="edit-2" size={16} color="#6a99e3" />
-            <Text style={styles.routeActionText}>Edit</Text>
+            <Feather name="edit-2" size={16} color={colors.buttonPrimary} />
+            <Text style={[styles.routeActionText, { color: colors.buttonPrimary }]}>Edit</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.routeActionButton}
             onPress={() => deleteRoute(item.id)}>
-            <Feather name="trash-2" size={16} color="#dc2626" />
-            <Text style={[styles.routeActionText, { color: '#dc2626' }]}>Delete</Text>
+            <Feather name="trash-2" size={16} color={colors.buttonDanger} />
+            <Text style={[styles.routeActionText, { color: colors.buttonDanger }]}>Delete</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -599,42 +603,42 @@ export default function NotificationMenu() {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <View style={[styles.container, { backgroundColor: colors.surfaceSecondary }]}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <View>
-          <Text style={styles.title}>Notifications</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Notifications</Text>
           {activeTab === 'notifications' && unreadCount > 0 && (
-            <Text style={styles.unreadCount}>{unreadCount} unread</Text>
+            <Text style={[styles.unreadCount, { color: colors.buttonPrimary }]}>{unreadCount} unread</Text>
           )}
           {activeTab === 'routes' && (
-            <Text style={styles.unreadCount}>{dailyRoutes.length} routes</Text>
+            <Text style={[styles.unreadCount, { color: colors.buttonPrimary }]}>{dailyRoutes.length} routes</Text>
           )}
         </View>
         <View style={styles.headerButtons}>
           {activeTab === 'notifications' && (
             <>
               <TouchableOpacity
-                style={styles.refreshButton}
+                style={[styles.refreshButton, { backgroundColor: colors.buttonSecondary }]}
                 onPress={loadRealTransitAlerts}
                 disabled={loadingAlerts}>
                 {loadingAlerts ? (
-                  <ActivityIndicator size="small" color="#6a99e3" />
+                  <ActivityIndicator size="small" color={colors.buttonPrimary} />
                 ) : (
-                  <Feather name="refresh-cw" size={20} color="#6a99e3" />
+                  <Feather name="refresh-cw" size={20} color={colors.buttonPrimary} />
                 )}
               </TouchableOpacity>
               {notifications.length > 0 && (
                 <TouchableOpacity
-                  style={styles.clearButton}
+                  style={[styles.clearButton, { backgroundColor: colors.buttonDangerBg }]}
                   onPress={clearAllNotifications}>
-                  <Text style={styles.clearButtonText}>Clear All</Text>
+                  <Text style={[styles.clearButtonText, { color: colors.buttonDanger }]}>Clear All</Text>
                 </TouchableOpacity>
               )}
             </>
           )}
           {activeTab === 'routes' && (
             <TouchableOpacity
-              style={styles.addRouteButton}
+              style={[styles.addRouteButton, { backgroundColor: colors.buttonPrimary }]}
               onPress={() => {
                 setEditingRoute(null);
                 setShowRouteModal(true);
@@ -645,28 +649,28 @@ export default function NotificationMenu() {
         </View>
       </View>
 
-      <View style={styles.tabBar}>
+      <View style={[styles.tabBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'notifications' && styles.activeTab]}
+          style={[styles.tab, activeTab === 'notifications' && styles.activeTab, activeTab === 'notifications' && { borderBottomColor: colors.buttonPrimary }]}
           onPress={() => setActiveTab('notifications')}>
           <Feather
             name="bell"
             size={18}
-            color={activeTab === 'notifications' ? '#6a99e3' : '#9ca3af'}
+            color={activeTab === 'notifications' ? colors.buttonPrimary : colors.metaText}
           />
-          <Text style={[styles.tabText, activeTab === 'notifications' && styles.activeTabText]}>
+          <Text style={[styles.tabText, { color: colors.metaText }, activeTab === 'notifications' && styles.activeTabText, activeTab === 'notifications' && { color: colors.buttonPrimary }]}>
             Notifications
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'routes' && styles.activeTab]}
+          style={[styles.tab, activeTab === 'routes' && styles.activeTab, activeTab === 'routes' && { borderBottomColor: colors.buttonPrimary }]}
           onPress={() => setActiveTab('routes')}>
           <Feather
             name="navigation"
             size={18}
-            color={activeTab === 'routes' ? '#6a99e3' : '#9ca3af'}
+            color={activeTab === 'routes' ? colors.buttonPrimary : colors.metaText}
           />
-          <Text style={[styles.tabText, activeTab === 'routes' && styles.activeTabText]}>
+          <Text style={[styles.tabText, { color: colors.metaText }, activeTab === 'routes' && styles.activeTabText, activeTab === 'routes' && { color: colors.buttonPrimary }]}>
             Daily Routes
           </Text>
         </TouchableOpacity>
@@ -675,9 +679,9 @@ export default function NotificationMenu() {
       {activeTab === 'notifications' ? (
         notifications.length === 0 ? (
           <View style={styles.emptyState}>
-            <Feather name="bell-off" size={64} color="#e5e7eb" />
-            <Text style={styles.emptyTitle}>No notifications</Text>
-            <Text style={styles.emptySubtitle}>
+            <Feather name="bell-off" size={64} color={colors.border} />
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>No notifications</Text>
+            <Text style={[styles.emptySubtitle, { color: colors.secondaryText }]}>
               You&apos;ll be notified about service changes and updates
             </Text>
           </View>
@@ -692,13 +696,13 @@ export default function NotificationMenu() {
         )
       ) : dailyRoutes.length === 0 ? (
         <View style={styles.emptyState}>
-          <Feather name="navigation" size={64} color="#e5e7eb" />
-          <Text style={styles.emptyTitle}>No daily routes</Text>
-          <Text style={styles.emptySubtitle}>
+          <Feather name="navigation" size={64} color={colors.border} />
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>No daily routes</Text>
+          <Text style={[styles.emptySubtitle, { color: colors.secondaryText }]}>
             Add your daily commute to get smart departure notifications
           </Text>
           <TouchableOpacity
-            style={styles.addFirstRouteButton}
+            style={[styles.addFirstRouteButton, { backgroundColor: colors.buttonPrimary }]}
             onPress={() => {
               setEditingRoute(null);
               setShowRouteModal(true);
@@ -741,6 +745,8 @@ function RouteModal({
   onClose: () => void;
   onSave: (route: DailyRoute) => void;
 }) {
+  const { actualTheme } = useTheme();
+  const colors = Colors[actualTheme];
   const [step, setStep] = useState<'location' | 'route' | 'config'>(route ? 'config' : 'location');
   const [name, setName] = useState('');
   const [startingPoint, setStartingPoint] = useState('');
@@ -921,17 +927,17 @@ function RouteModal({
 
   const renderLocationStep = () => (
     <>
-      <View style={styles.modalHeader}>
+      <View style={[styles.modalHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={onClose}>
-          <Feather name="x" size={24} color="#222" />
+          <Feather name="x" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.modalTitle}>Select Route</Text>
+        <Text style={[styles.modalTitle, { color: colors.text }]}>Select Route</Text>
         <View style={{ width: 24 }} />
       </View>
 
       <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
         <View style={styles.formSection}>
-          <Text style={styles.formLabel}>Starting Point</Text>
+          <Text style={[styles.formLabel, { color: colors.text }]}>Starting Point</Text>
           <View style={styles.inputRow}>
             <PlaceAutocompleteInput
               placeholder="Starting Point"
@@ -946,7 +952,7 @@ function RouteModal({
             />
             {loadingLocation && (
               <View style={styles.locationLoadingOverlay}>
-                <ActivityIndicator size="small" color="#6a99e3" />
+                <ActivityIndicator size="small" color={colors.buttonPrimary} />
               </View>
             )}
           </View>
@@ -954,13 +960,13 @@ function RouteModal({
             style={styles.currentLocationButton}
             onPress={getCurrentLocation}
             disabled={loadingLocation}>
-            <Feather name="crosshair" size={14} color="#6a99e3" />
-            <Text style={styles.currentLocationText}>Use current location</Text>
+            <Feather name="crosshair" size={14} color={colors.buttonPrimary} />
+            <Text style={[styles.currentLocationText, { color: colors.buttonPrimary }]}>Use current location</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.formSection}>
-          <Text style={styles.formLabel}>Destination</Text>
+          <Text style={[styles.formLabel, { color: colors.text }]}>Destination</Text>
           <PlaceAutocompleteInput
             placeholder="Destination"
             icon="map-pin"
@@ -978,7 +984,9 @@ function RouteModal({
           disabled={loading || !startingLocation || !destinationLocation}
           style={[
             styles.findRouteButton,
+            { backgroundColor: colors.buttonPrimary },
             (!startingLocation || !destinationLocation) && styles.findRouteButtonDisabled,
+            (!startingLocation || !destinationLocation) && { backgroundColor: colors.inputBorder },
           ]}>
           {loading ? (
             <ActivityIndicator size="small" color="#fff" />
@@ -988,7 +996,7 @@ function RouteModal({
         </TouchableOpacity>
 
         {(!startingLocation || !destinationLocation) && (
-          <Text style={styles.helperText}>
+          <Text style={[styles.helperText, { color: colors.secondaryText }]}>
             {!startingLocation && !destinationLocation
               ? 'Please select starting point and destination'
               : !startingLocation
@@ -1002,16 +1010,16 @@ function RouteModal({
 
   const renderRouteStep = () => (
     <>
-      <View style={styles.modalHeader}>
+      <View style={[styles.modalHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={handleBack}>
-          <Feather name="arrow-left" size={24} color="#222" />
+          <Feather name="arrow-left" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.modalTitle}>Choose Route</Text>
+        <Text style={[styles.modalTitle, { color: colors.text }]}>Choose Route</Text>
         <View style={{ width: 24 }} />
       </View>
 
       <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-        <Text style={styles.routesTitle}>Available Routes</Text>
+        <Text style={[styles.routesTitle, { color: colors.text }]}>Available Routes</Text>
         {routes.map((transitRoute, index) => (
           <RouteOptionCard
             key={`route-${index}`}
@@ -1026,64 +1034,64 @@ function RouteModal({
 
   const renderConfigStep = () => (
     <>
-      <View style={styles.modalHeader}>
+      <View style={[styles.modalHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={handleBack}>
-          <Feather name={route ? 'x' : 'arrow-left'} size={24} color="#222" />
+          <Feather name={route ? 'x' : 'arrow-left'} size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.modalTitle}>{route ? 'Edit Route' : 'Configure Notifications'}</Text>
+        <Text style={[styles.modalTitle, { color: colors.text }]}>{route ? 'Edit Route' : 'Configure Notifications'}</Text>
         <TouchableOpacity onPress={handleSave}>
-          <Text style={styles.saveButton}>Save</Text>
+          <Text style={[styles.saveButton, { color: colors.buttonPrimary }]}>Save</Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
         <View style={styles.formSection}>
-          <Text style={styles.formLabel}>Route Name</Text>
+          <Text style={[styles.formLabel, { color: colors.text }]}>Route Name</Text>
           <TextInput
-            style={styles.textInput}
+            style={[styles.textInput, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.text }]}
             value={name}
             onChangeText={setName}
             placeholder="e.g., Morning Commute"
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor={colors.metaText}
           />
         </View>
 
         {selectedRoute && (
-          <View style={styles.selectedRoutePreview}>
-            <Text style={styles.previewLabel}>Selected Route</Text>
-            <Text style={styles.previewText}>
+          <View style={[styles.selectedRoutePreview, { backgroundColor: colors.infoBoxBg }]}>
+            <Text style={[styles.previewLabel, { color: colors.buttonPrimary }]}>Selected Route</Text>
+            <Text style={[styles.previewText, { color: colors.text }]}>
               {selectedRoute.summary || 'Transit route'}
             </Text>
-            <Text style={styles.previewSubtext}>
+            <Text style={[styles.previewSubtext, { color: colors.secondaryText }]}>
               {selectedRoute.legs?.[0]?.duration?.text || 'Unknown duration'}
             </Text>
           </View>
         )}
 
         <View style={styles.formSection}>
-          <Text style={styles.formLabel}>Departure Time</Text>
+          <Text style={[styles.formLabel, { color: colors.text }]}>Departure Time</Text>
           <TextInput
-            style={styles.textInput}
+            style={[styles.textInput, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.text }]}
             value={departureTime}
             onChangeText={setDepartureTime}
             placeholder="HH:MM"
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor={colors.metaText}
           />
         </View>
 
         <View style={styles.formSection}>
-          <Text style={styles.formLabel}>Days of Week</Text>
+          <Text style={[styles.formLabel, { color: colors.text }]}>Days of Week</Text>
           <View style={styles.daysContainer}>
             {daysAbbrev.map((day, idx) => (
               <TouchableOpacity
                 key={idx}
-                style={[styles.dayButton, daysOfWeek[idx] && styles.dayButtonActive]}
+                style={[styles.dayButton, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }, daysOfWeek[idx] && styles.dayButtonActive, daysOfWeek[idx] && { backgroundColor: colors.buttonPrimary, borderColor: colors.buttonPrimary }]}
                 onPress={() => {
                   const newDays = [...daysOfWeek];
                   newDays[idx] = !newDays[idx];
                   setDaysOfWeek(newDays);
                 }}>
-                <Text style={[styles.dayButtonText, daysOfWeek[idx] && styles.dayButtonTextActive]}>
+                <Text style={[styles.dayButtonText, { color: colors.secondaryText }, daysOfWeek[idx] && styles.dayButtonTextActive]}>
                   {day}
                 </Text>
               </TouchableOpacity>
@@ -1092,19 +1100,22 @@ function RouteModal({
         </View>
 
         <View style={styles.formSection}>
-          <Text style={styles.formLabel}>Advance Notice: {advanceNoticeMinutes} minutes</Text>
+          <Text style={[styles.formLabel, { color: colors.text }]}>Advance Notice: {advanceNoticeMinutes} minutes</Text>
           <View style={styles.timeButtonsContainer}>
             {[15, 30, 45, 60].map(minutes => (
               <TouchableOpacity
                 key={minutes}
                 style={[
                   styles.timeButton,
+                  { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder },
                   advanceNoticeMinutes === minutes && styles.timeButtonActive,
+                  advanceNoticeMinutes === minutes && { backgroundColor: colors.buttonPrimary, borderColor: colors.buttonPrimary },
                 ]}
                 onPress={() => setAdvanceNoticeMinutes(minutes)}>
                 <Text
                   style={[
                     styles.timeButtonText,
+                    { color: colors.secondaryText },
                     advanceNoticeMinutes === minutes && styles.timeButtonTextActive,
                   ]}>
                   {minutes}m
@@ -1115,19 +1126,22 @@ function RouteModal({
         </View>
 
         <View style={styles.formSection}>
-          <Text style={styles.formLabel}>Walking Buffer: {bufferMinutes} minutes</Text>
+          <Text style={[styles.formLabel, { color: colors.text }]}>Walking Buffer: {bufferMinutes} minutes</Text>
           <View style={styles.timeButtonsContainer}>
             {[0, 5, 10, 15].map(minutes => (
               <TouchableOpacity
                 key={minutes}
                 style={[
                   styles.timeButton,
+                  { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder },
                   bufferMinutes === minutes && styles.timeButtonActive,
+                  bufferMinutes === minutes && { backgroundColor: colors.buttonPrimary, borderColor: colors.buttonPrimary },
                 ]}
                 onPress={() => setBufferMinutes(minutes)}>
                 <Text
                   style={[
                     styles.timeButtonText,
+                    { color: colors.secondaryText },
                     bufferMinutes === minutes && styles.timeButtonTextActive,
                   ]}>
                   {minutes}m
@@ -1140,21 +1154,21 @@ function RouteModal({
         <View style={styles.formSection}>
           <View style={styles.switchRow}>
             <View>
-              <Text style={styles.formLabel}>Morning Briefing</Text>
+              <Text style={[styles.formLabel, { color: colors.text }]}>Morning Briefing</Text>
               <Text style={styles.formSubtext}>Get a summary notification in advance</Text>
             </View>
             <Switch
               value={morningBriefing}
               onValueChange={setMorningBriefing}
-              trackColor={{ false: '#d1d5db', true: '#6a99e3' }}
+              trackColor={{ false: colors.inputBorder, true: colors.buttonPrimary }}
               thumbColor="#fff"
             />
           </View>
         </View>
 
-        <View style={styles.infoBox}>
-          <Feather name="info" size={16} color="#6a99e3" />
-          <Text style={styles.infoText}>
+        <View style={[styles.infoBox, { backgroundColor: colors.infoBoxBg }]}>
+          <Feather name="info" size={16} color={colors.buttonPrimary} />
+          <Text style={[styles.infoText, { color: colors.secondaryText }]}>
             We&apos;ll calculate walking time from your location and notify you when it&apos;s time to leave!
           </Text>
         </View>
@@ -1164,7 +1178,7 @@ function RouteModal({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={styles.modalContainer}>
+      <View style={[styles.modalContainer, { backgroundColor: colors.surfaceSecondary }]}>
         {step === 'location' && renderLocationStep()}
         {step === 'route' && renderRouteStep()}
         {step === 'config' && renderConfigStep()}
@@ -1174,6 +1188,8 @@ function RouteModal({
 }
 
 function RouteOptionCard({ route, routeNumber, onSelect }: { route: TransitRoute; routeNumber: number; onSelect: () => void }) {
+  const { actualTheme } = useTheme();
+  const colors = Colors[actualTheme];
   const leg = route.legs?.[0];
   if (!leg) return null;
 
@@ -1200,26 +1216,26 @@ function RouteOptionCard({ route, routeNumber, onSelect }: { route: TransitRoute
   const arrivalTime = leg.arrival_time?.text || '';
 
   return (
-    <TouchableOpacity style={styles.routeOptionCard} onPress={onSelect}>
+    <TouchableOpacity style={[styles.routeOptionCard, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={onSelect}>
       <View style={styles.routeOptionHeader}>
-        <Text style={styles.routeOptionNumber}>Route {routeNumber}</Text>
-        <View style={styles.routeOptionDuration}>
-          <Feather name="clock" size={16} color="#6a99e3" />
-          <Text style={styles.routeOptionDurationText}>{leg.duration?.text || 'Unknown'}</Text>
+        <Text style={[styles.routeOptionNumber, { color: colors.text }]}>Route {routeNumber}</Text>
+        <View style={[styles.routeOptionDuration, { backgroundColor: colors.buttonSecondary }]}>
+          <Feather name="clock" size={16} color={colors.buttonPrimary} />
+          <Text style={[styles.routeOptionDurationText, { color: colors.buttonPrimary }]}>{leg.duration?.text || 'Unknown'}</Text>
         </View>
       </View>
-      <Text style={styles.routeOptionMode} numberOfLines={2}>{modesSummary}</Text>
+      <Text style={[styles.routeOptionMode, { color: colors.text }]} numberOfLines={2}>{modesSummary}</Text>
       <View style={styles.routeOptionDetails}>
         <View style={styles.routeOptionDetail}>
-          <Feather name="shuffle" size={14} color="#6b7280" />
-          <Text style={styles.routeOptionDetailText}>
+          <Feather name="shuffle" size={14} color={colors.secondaryText} />
+          <Text style={[styles.routeOptionDetailText, { color: colors.secondaryText }]}>
             {transferCount} {transferCount === 1 ? 'transfer' : 'transfers'}
           </Text>
         </View>
         {arrivalTime && (
           <View style={styles.routeOptionDetail}>
-            <Feather name="target" size={14} color="#6b7280" />
-            <Text style={styles.routeOptionDetailText}>Arrive {arrivalTime}</Text>
+            <Feather name="target" size={14} color={colors.secondaryText} />
+            <Text style={[styles.routeOptionDetailText, { color: colors.secondaryText }]}>Arrive {arrivalTime}</Text>
           </View>
         )}
       </View>
@@ -1230,7 +1246,6 @@ function RouteOptionCard({ route, routeNumber, onSelect }: { route: TransitRoute
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
   },
   header: {
     flexDirection: 'row',
@@ -1238,19 +1253,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 24,
     paddingBottom: 16,
-    backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
   },
   title: {
     fontSize: 27,
     textAlign: 'left',
     fontWeight: '700',
-    color: '#222',
   },
   unreadCount: {
     fontSize: 14,
-    color: '#6a99e3',
     marginTop: 4,
     fontWeight: '600',
   },
@@ -1263,7 +1274,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#e8f0f9',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1273,20 +1283,17 @@ const styles = StyleSheet.create({
   clearButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: '#fee2e2',
     borderRadius: 8,
   },
   clearButtonText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#dc2626',
   },
   listContent: {
     padding: 16,
     paddingBottom: 100,
   },
   notificationCard: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     marginBottom: 12,
     shadowColor: '#000',
@@ -1297,7 +1304,6 @@ const styles = StyleSheet.create({
   },
   unreadCard: {
     borderLeftWidth: 3,
-    borderLeftColor: '#6a99e3',
   },
   notificationContent: {
     flexDirection: 'row',
@@ -1323,17 +1329,14 @@ const styles = StyleSheet.create({
   notificationTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#222',
   },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#6a99e3',
   },
   notificationMessage: {
     fontSize: 14,
-    color: '#6b7280',
     lineHeight: 20,
     marginBottom: 8,
   },
@@ -1344,13 +1347,10 @@ const styles = StyleSheet.create({
   },
   timestamp: {
     fontSize: 12,
-    color: '#9ca3af',
   },
   routeInfo: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#6a99e3',
-    backgroundColor: '#e8f0f9',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
@@ -1367,12 +1367,10 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#222',
     marginTop: 16,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: '#6b7280',
     textAlign: 'center',
     marginTop: 8,
   },
@@ -1393,9 +1391,7 @@ const styles = StyleSheet.create({
   },
   tabBar: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
   },
   tab: {
     flex: 1,
@@ -1408,30 +1404,26 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   activeTab: {
-    borderBottomColor: '#6a99e3',
   },
   tabText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#9ca3af',
   },
   activeTabText: {
-    color: '#6a99e3',
     fontWeight: '600',
   },
   addRouteButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#6a99e3',
     justifyContent: 'center',
     alignItems: 'center',
   },
   routeCard: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     marginBottom: 12,
     padding: 16,
+    borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -1453,12 +1445,10 @@ const styles = StyleSheet.create({
   routeName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#222',
     marginBottom: 4,
   },
   routeDays: {
     fontSize: 13,
-    color: '#6a99e3',
     fontWeight: '500',
   },
   routeDetails: {
@@ -1472,14 +1462,12 @@ const styles = StyleSheet.create({
   },
   routeDetailText: {
     fontSize: 14,
-    color: '#6b7280',
   },
   routeActions: {
     flexDirection: 'row',
     gap: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
   },
   routeActionButton: {
     flexDirection: 'row',
@@ -1489,13 +1477,11 @@ const styles = StyleSheet.create({
   routeActionText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6a99e3',
   },
   addFirstRouteButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#6a99e3',
     paddingHorizontal: 24,
     paddingVertical: 14,
     borderRadius: 12,
@@ -1508,7 +1494,6 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1516,14 +1501,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     paddingTop: 60,
-    backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#222',
   },
   saveButton: {
     fontSize: 16,
@@ -1540,7 +1522,6 @@ const styles = StyleSheet.create({
   formLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#222',
     marginBottom: 8,
   },
   formSubtext: {
@@ -1560,13 +1541,10 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   textInput: {
-    backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#d1d5db',
     borderRadius: 8,
     padding: 12,
     fontSize: 15,
-    color: '#222',
   },
   daysContainer: {
     flexDirection: 'row',
@@ -1575,20 +1553,15 @@ const styles = StyleSheet.create({
   dayButton: {
     flex: 1,
     paddingVertical: 12,
-    backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#d1d5db',
     borderRadius: 8,
     alignItems: 'center',
   },
   dayButtonActive: {
-    backgroundColor: '#6a99e3',
-    borderColor: '#6a99e3',
   },
   dayButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6b7280',
   },
   dayButtonTextActive: {
     color: '#fff',
@@ -1600,20 +1573,15 @@ const styles = StyleSheet.create({
   timeButton: {
     flex: 1,
     paddingVertical: 10,
-    backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#d1d5db',
     borderRadius: 8,
     alignItems: 'center',
   },
   timeButtonActive: {
-    backgroundColor: '#6a99e3',
-    borderColor: '#6a99e3',
   },
   timeButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6b7280',
   },
   timeButtonTextActive: {
     color: '#fff',
@@ -1627,7 +1595,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     padding: 16,
-    backgroundColor: '#e8f0f9',
     borderRadius: 8,
     marginTop: 8,
     marginBottom: 32,
@@ -1635,7 +1602,6 @@ const styles = StyleSheet.create({
   infoText: {
     flex: 1,
     fontSize: 13,
-    color: '#6b7280',
     lineHeight: 18,
   },
   inputRow: {
@@ -1654,18 +1620,15 @@ const styles = StyleSheet.create({
   },
   currentLocationText: {
     fontSize: 13,
-    color: '#6a99e3',
     fontWeight: '500',
   },
   findRouteButton: {
-    backgroundColor: '#6a99e3',
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
     marginTop: 24,
   },
   findRouteButtonDisabled: {
-    backgroundColor: '#d1d5db',
   },
   findRouteButtonText: {
     fontSize: 16,
@@ -1674,21 +1637,19 @@ const styles = StyleSheet.create({
   },
   helperText: {
     fontSize: 13,
-    color: '#6b7280',
     textAlign: 'center',
     marginTop: 12,
   },
   routesTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#222',
     marginBottom: 16,
   },
   routeOptionCard: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
+    borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -1704,12 +1665,10 @@ const styles = StyleSheet.create({
   routeOptionNumber: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#222',
   },
   routeOptionDuration: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#e8f0f9',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
@@ -1718,12 +1677,10 @@ const styles = StyleSheet.create({
   routeOptionDurationText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#6a99e3',
   },
   routeOptionMode: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#222',
     marginBottom: 12,
   },
   routeOptionDetails: {
@@ -1738,10 +1695,8 @@ const styles = StyleSheet.create({
   },
   routeOptionDetailText: {
     fontSize: 13,
-    color: '#6b7280',
   },
   selectedRoutePreview: {
-    backgroundColor: '#e8f0f9',
     padding: 16,
     borderRadius: 12,
     marginBottom: 24,
@@ -1749,7 +1704,6 @@ const styles = StyleSheet.create({
   previewLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#6a99e3',
     marginBottom: 6,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -1757,11 +1711,9 @@ const styles = StyleSheet.create({
   previewText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#222',
     marginBottom: 4,
   },
   previewSubtext: {
     fontSize: 14,
-    color: '#6b7280',
   },
 });
