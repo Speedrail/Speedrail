@@ -49,7 +49,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (originalRoutes.length > 0) {
-      const routesToDisplay = oldAgeRoute 
+      const routesToDisplay = oldAgeRoute
         ? applyOldAgeAdjustment(originalRoutes)
         : originalRoutes;
       setRoutes(routesToDisplay);
@@ -59,7 +59,7 @@ export default function HomePage() {
       const routeToDisplay = oldAgeRoute 
         ? applyOldAgeAdjustment([originalSelectedRoute])[0]
         : originalSelectedRoute;
-      setSelectedRoute(routeToDisplay);
+      setSelectedRoute(selectedRoute ? routeToDisplay : null);
     }
   }, [oldAgeRoute]);
 
@@ -198,9 +198,8 @@ export default function HomePage() {
     const originalRoute = originalRoutes.find(r => r.summary === route.summary);
     if (originalRoute) {
       setOriginalSelectedRoute(originalRoute);
-      setSelectedRoute(route);
+      setLocalSelectedRoute(route);
     }
-    setLocalSelectedRoute(route);
   };
 
   const handleBackFromTracking = () => {
