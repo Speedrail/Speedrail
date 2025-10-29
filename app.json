@@ -15,7 +15,7 @@
         "ITSAppUsesNonExemptEncryption": false
       },
       "config": {
-        "googleMapsApiKey": "process.env.GOOGLE_MAPS_API_KEY"
+        "googleMapsApiKey": "${GOOGLE_MAPS_API_KEY}"
       }
     },
     "notification": {
@@ -35,7 +35,7 @@
       "package": "com.fishnos.Speedrail",
       "config": {
         "googleMaps": {
-          "apiKey": "process.env.GOOGLE_MAPS_API_KEY"
+          "apiKey": "${GOOGLE_MAPS_API_KEY}"
         }
       }
     },

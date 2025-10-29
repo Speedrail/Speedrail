@@ -31,3 +31,4 @@ jobs:
       run: eas build --platform ios --non-interactive
       env:
         EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}

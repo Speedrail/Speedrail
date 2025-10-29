@@ -9,13 +9,22 @@
       "distribution": "internal",
       "ios": {
         "simulator": true
+      },
+      "env": {
+        "GOOGLE_MAPS_API_KEY": "$GOOGLE_MAPS_API_KEY"
       }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "GOOGLE_MAPS_API_KEY": "$GOOGLE_MAPS_API_KEY"
+      }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "GOOGLE_MAPS_API_KEY": "$GOOGLE_MAPS_API_KEY"
+      }
     },
     "development-simulator": {
       "developmentClient": true,
@@ -23,7 +32,10 @@
       "ios": {
         "simulator": true
       },
-      "environment": "development"
+      "environment": "development",
+      "env": {
+        "GOOGLE_MAPS_API_KEY": "$GOOGLE_MAPS_API_KEY"
+      }
     }
   },
   "submit": {
