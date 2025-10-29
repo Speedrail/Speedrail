@@ -4,7 +4,7 @@
     "slug": "Speedrail",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/speedrail.png",
     "scheme": "speedrail",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -19,17 +19,12 @@
       }
     },
     "notification": {
-      "icon": "./assets/images/icon.png",
+      "icon": "./assets/images/speedrail.png",
       "color": "#6a99e3",
       "iosDisplayInForeground": true
     },
     "android": {
-      "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      },
+      "icon": "./assets/images/speedrail.png",
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.fishnos.Speedrail",
@@ -48,7 +43,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/speedrail.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",
