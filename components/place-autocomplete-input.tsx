@@ -1,19 +1,21 @@
+import { Colors } from '@/constants/theme';
+import { useTheme } from '@/contexts/theme-context';
 import Feather from '@expo/vector-icons/Feather';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  ScrollView,
-  StyleProp,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-  ViewStyle,
+    ActivityIndicator,
+    ScrollView,
+    StyleProp,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+    ViewStyle,
 } from 'react-native';
 import {
-  GoogleMapsService,
-  PlaceAutocompleteResult,
+    GoogleMapsService,
+    PlaceAutocompleteResult,
 } from '../services/google-maps-api';
 
 // Generate a UUID v4-like session token
@@ -42,6 +44,8 @@ export default function PlaceAutocompleteInput({
   onChangeText,
   containerStyle,
 }: PlaceAutocompleteInputProps) {
+  const { actualTheme } = useTheme();
+  const colors = Colors[actualTheme];
   const [inputText, setInputText] = useState(value);
   const [predictions, setPredictions] = useState<PlaceAutocompleteResult[]>([]);
   const [showPredictions, setShowPredictions] = useState(false);
@@ -131,8 +135,13 @@ export default function PlaceAutocompleteInput({
       <View style={styles.inputWrapper}>
         <TextInput
           placeholder={placeholder}
-          placeholderTextColor="#9eadba"
-          style={styles.input}
+          placeholderTextColor={colors.secondaryText || colors.icon}
+          style={[styles.input, { 
+            backgroundColor: actualTheme === 'dark' ? colors.card : '#f0f6fb',
+            color: colors.text,
+            borderWidth: 1,
+            borderColor: colors.cardBorder,
+          }]}
           value={inputText}
           onChangeText={handleTextChange}
           onFocus={() => {
@@ -142,33 +151,37 @@ export default function PlaceAutocompleteInput({
           }}
         />
         <View style={styles.inputIcon}>
-          <Feather name={icon} size={16} color="#9eadba" />
+          <Feather name={icon} size={16} color={colors.icon} />
         </View>
         {loading && (
           <View style={styles.loadingIcon}>
-            <ActivityIndicator size="small" color="#6a99e3" />
+            <ActivityIndicator size="small" color={colors.accentBlue || colors.tint} />
           </View>
         )}
       </View>
 
       {showPredictions && predictions.length > 0 && (
-        <View style={styles.predictionsContainer}>
+        <View style={[styles.predictionsContainer, { 
+          backgroundColor: colors.card,
+          borderWidth: 1,
+          borderColor: colors.cardBorder,
+        }]}>
           <ScrollView keyboardShouldPersistTaps="handled">
             {predictions.map((item) => (
               <TouchableOpacity
                 key={item.place_id}
-                style={styles.predictionItem}
+                style={[styles.predictionItem, { borderBottomColor: colors.cardBorder }]}
                 onPress={() => handlePlaceSelect(item)}
               >
                 <View style={styles.predictionIcon}>
-                  <Feather name="map-pin" size={16} color="#6a99e3" />
+                  <Feather name="map-pin" size={16} color={colors.accentBlue || colors.tint} />
                 </View>
                 <View style={styles.predictionTextContainer}>
-                  <Text style={styles.predictionMainText}>
+                  <Text style={[styles.predictionMainText, { color: colors.text }]}>
                     {item.structured_formatting?.main_text || item.description}
                   </Text>
                   {item.structured_formatting?.secondary_text && (
-                    <Text style={styles.predictionSecondaryText}>
+                    <Text style={[styles.predictionSecondaryText, { color: colors.secondaryText || colors.icon }]}>
                       {item.structured_formatting.secondary_text}
                     </Text>
                   )}
@@ -193,13 +206,11 @@ const styles = StyleSheet.create({
   },
   input: {
     height: 44,
-    backgroundColor: '#f0f6fb',
     paddingLeft: 44,
     paddingRight: 44,
     borderRadius: 12,
     fontSize: 15,
     fontWeight: '500',
-    color: '#222',
   },
   inputIcon: {
     position: 'absolute',
@@ -226,7 +237,6 @@ const styles = StyleSheet.create({
     top:50,
     left: 0,
     right: 0,
-    backgroundColor: '#fff',
     borderRadius: 12,
     maxHeight: 200,
     shadowColor: '#000',
@@ -244,7 +254,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
   },
   predictionIcon: {
     width: 32,
@@ -259,11 +268,9 @@ const styles = StyleSheet.create({
   predictionMainText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#222',
     marginBottom: 2,
   },
   predictionSecondaryText: {
     fontSize: 13,
-    color: '#6b7280',
   },
 });

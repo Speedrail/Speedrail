@@ -1,10 +1,12 @@
+import { Colors } from '@/constants/theme';
+import { useTheme } from '@/contexts/theme-context';
 import Feather from '@expo/vector-icons/Feather';
 import React from 'react';
 import {
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { TransitRoute } from '../services/google-maps-api';
 
@@ -15,6 +17,8 @@ interface RouteOptionProps {
 }
 
 export default function RouteOption({ route, routeNumber, onSelect }: RouteOptionProps) {
+  const { actualTheme } = useTheme();
+  const colors = Colors[actualTheme];
   const leg = route.legs?.[0];
   
   if (!leg) {
@@ -45,41 +49,47 @@ export default function RouteOption({ route, routeNumber, onSelect }: RouteOptio
   const arrivalTime = leg.arrival_time?.text || '';
 
   return (
-    <TouchableOpacity style={styles.container} onPress={onSelect}>
+    <TouchableOpacity style={[styles.container, { 
+      backgroundColor: colors.card,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+    }]} onPress={onSelect}>
       <View style={styles.header}>
         <View style={styles.routeNumberContainer}>
-          <Text style={styles.routeNumber}>Route {routeNumber}</Text>
+          <Text style={[styles.routeNumber, { color: colors.text }]}>Route {routeNumber}</Text>
         </View>
-        <View style={styles.durationContainer}>
-          <Feather name="clock" size={16} color="#6a99e3" />
-          <Text style={styles.duration}>{leg.duration?.text || 'Unknown'}</Text>
+        <View style={[styles.durationContainer, { 
+          backgroundColor: actualTheme === 'dark' ? '#1E3A5F' : '#e8f0f9' 
+        }]}>
+          <Feather name="clock" size={16} color={colors.accentBlue || '#6a99e3'} />
+          <Text style={[styles.duration, { color: colors.accentBlue || '#6a99e3' }]}>{leg.duration?.text || 'Unknown'}</Text>
         </View>
       </View>
 
       <View style={styles.modeContainer}>
-        <Text style={styles.modeText} numberOfLines={1}>
+        <Text style={[styles.modeText, { color: colors.text }]} numberOfLines={1}>
           {modesSummary}
         </Text>
       </View>
 
       <View style={styles.detailsRow}>
         <View style={styles.detailItem}>
-          <Feather name="shuffle" size={14} color="#6b7280" />
-          <Text style={styles.detailText}>
+          <Feather name="shuffle" size={14} color={colors.secondaryText || colors.icon} />
+          <Text style={[styles.detailText, { color: colors.secondaryText || colors.icon }]}>
             {transferCount} {transferCount === 1 ? 'transfer' : 'transfers'}
           </Text>
         </View>
         {leg.arrival_time && (
           <View style={styles.detailItem}>
-            <Feather name="target" size={14} color="#6b7280" />
-            <Text style={styles.detailText}>Arrive {arrivalTime}</Text>
+            <Feather name="target" size={14} color={colors.secondaryText || colors.icon} />
+            <Text style={[styles.detailText, { color: colors.secondaryText || colors.icon }]}>Arrive {arrivalTime}</Text>
           </View>
         )}
       </View>
 
       {route.fare && (
-        <View style={styles.fareContainer}>
-          <Text style={styles.fareText}>{route.fare.text}</Text>
+        <View style={[styles.fareContainer, { borderTopColor: colors.cardBorder }]}>
+          <Text style={[styles.fareText, { color: colors.text }]}>{route.fare.text}</Text>
         </View>
       )}
     </TouchableOpacity>
@@ -88,7 +98,6 @@ export default function RouteOption({ route, routeNumber, onSelect }: RouteOptio
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -113,12 +122,10 @@ const styles = StyleSheet.create({
   routeNumber: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#222',
   },
   durationContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#e8f0f9',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
@@ -126,7 +133,6 @@ const styles = StyleSheet.create({
   duration: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#6a99e3',
     marginLeft: 6,
   },
   modeContainer: {
@@ -135,7 +141,6 @@ const styles = StyleSheet.create({
   modeText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#222',
   },
   detailsRow: {
     flexDirection: 'row',
@@ -148,18 +153,15 @@ const styles = StyleSheet.create({
   },
   detailText: {
     fontSize: 13,
-    color: '#6b7280',
     marginLeft: 6,
   },
   fareContainer: {
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
   },
   fareText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#222',
   },
 });

@@ -3,13 +3,13 @@ import { useTheme } from '@/contexts/theme-context';
 import Feather from '@expo/vector-icons/Feather';
 import React, { useState } from 'react';
 import {
-    Image,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TouchableOpacity,
-    View
+  Image,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -44,7 +44,7 @@ export default function SettingsPage() {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Appearance</Text>
           
-          <View style={[styles.card, { backgroundColor: isDark ? '#1f2937' : '#f9fafb' }]}>
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder, borderWidth: 1 }]}>
             <View style={styles.settingRow}>
               <View style={styles.settingInfo}>
                 <Feather name="sun" size={20} color={colors.icon} />
@@ -57,8 +57,8 @@ export default function SettingsPage() {
                 style={[
                   styles.themeButton,
                   themeMode === 'light' && styles.themeButtonActive,
-                  { borderColor: isDark ? '#374151' : '#e5e7eb' },
-                  themeMode === 'light' && { backgroundColor: colors.tint }
+                  { borderColor: colors.cardBorder },
+                  themeMode === 'light' && { backgroundColor: colors.accentBlue || colors.tint }
                 ]}
                 onPress={() => handleThemeChange('light')}
               >
@@ -79,8 +79,8 @@ export default function SettingsPage() {
                 style={[
                   styles.themeButton,
                   themeMode === 'dark' && styles.themeButtonActive,
-                  { borderColor: isDark ? '#374151' : '#e5e7eb' },
-                  themeMode === 'dark' && { backgroundColor: colors.tint }
+                  { borderColor: colors.cardBorder },
+                  themeMode === 'dark' && { backgroundColor: colors.accentBlue || colors.tint }
                 ]}
                 onPress={() => handleThemeChange('dark')}
               >
@@ -101,8 +101,8 @@ export default function SettingsPage() {
                 style={[
                   styles.themeButton,
                   themeMode === 'auto' && styles.themeButtonActive,
-                  { borderColor: isDark ? '#374151' : '#e5e7eb' },
-                  themeMode === 'auto' && { backgroundColor: colors.tint }
+                  { borderColor: colors.cardBorder },
+                  themeMode === 'auto' && { backgroundColor: colors.accentBlue || colors.tint }
                 ]}
                 onPress={() => handleThemeChange('auto')}
               >
@@ -126,7 +126,7 @@ export default function SettingsPage() {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Features</Text>
           
-          <View style={[styles.card, { backgroundColor: isDark ? '#1f2937' : '#f9fafb' }]}>
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder, borderWidth: 1 }]}>
             <View style={styles.settingRow}>
               <View style={styles.settingInfo}>
                 <Feather name="bell" size={20} color={colors.icon} />
@@ -137,13 +137,13 @@ export default function SettingsPage() {
               <Switch
                 value={notificationsEnabled}
                 onValueChange={setNotificationsEnabled}
-                trackColor={{ true: colors.tint, false: '#9ca3af' }}
+                trackColor={{ true: colors.accentBlue || colors.tint, false: isDark ? '#475569' : '#9ca3af' }}
                 thumbColor={'#ffffff'}
-                ios_backgroundColor={'#9ca3af'}
+                ios_backgroundColor={isDark ? '#475569' : '#9ca3af'}
               />
             </View>
 
-            <View style={[styles.divider, { backgroundColor: isDark ? '#374151' : '#e5e7eb' }]} />
+            <View style={[styles.divider, { backgroundColor: colors.cardBorder }]} />
 
             <View style={styles.settingRow}>
               <View style={styles.settingInfo}>
@@ -155,13 +155,13 @@ export default function SettingsPage() {
               <Switch
                 value={locationEnabled}
                 onValueChange={setLocationEnabled}
-                trackColor={{ true: colors.tint, false: '#9ca3af' }}
+                trackColor={{ true: colors.accentBlue || colors.tint, false: isDark ? '#475569' : '#9ca3af' }}
                 thumbColor={'#ffffff'}
-                ios_backgroundColor={'#9ca3af'}
+                ios_backgroundColor={isDark ? '#475569' : '#9ca3af'}
               />
             </View>
 
-            <View style={[styles.divider, { backgroundColor: isDark ? '#374151' : '#e5e7eb' }]} />
+            <View style={[styles.divider, { backgroundColor: colors.cardBorder }]} />
 
             <View style={styles.settingRow}>
               <View style={styles.settingInfo}>
@@ -173,9 +173,9 @@ export default function SettingsPage() {
               <Switch
                 value={autoRefresh}
                 onValueChange={setAutoRefresh}
-                trackColor={{ true: colors.tint, false: '#9ca3af' }}
+                trackColor={{ true: colors.accentBlue || colors.tint, false: isDark ? '#475569' : '#9ca3af' }}
                 thumbColor={'#ffffff'}
-                ios_backgroundColor={'#9ca3af'}
+                ios_backgroundColor={isDark ? '#475569' : '#9ca3af'}
               />
             </View>
           </View>
@@ -185,8 +185,8 @@ export default function SettingsPage() {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Credits</Text>
           
-          <View style={[styles.card, { backgroundColor: isDark ? '#1f2937' : '#f9fafb' }]}>
-            <Text style={[styles.creditsSubtitle, { color: colors.icon }]}>
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder, borderWidth: 1 }]}>
+            <Text style={[styles.creditsSubtitle, { color: colors.secondaryText || colors.icon }]}>
               Developed by
             </Text>
 
@@ -204,13 +204,13 @@ export default function SettingsPage() {
                 <Text style={[styles.creditName, { color: colors.text }]}>
                   Ethan Kang
                 </Text>
-                <Text style={[styles.creditRole, { color: colors.icon }]}>
+                <Text style={[styles.creditRole, { color: colors.secondaryText || colors.icon }]}>
                 Developer
                 </Text>
               </View>
             </View>
 
-            <View style={[styles.divider, { backgroundColor: isDark ? '#374151' : '#e5e7eb' }]} />
+            <View style={[styles.divider, { backgroundColor: colors.cardBorder }]} />
 
             {/* Daniel Kosukhin */}
             <View style={styles.creditItem}>
@@ -222,7 +222,7 @@ export default function SettingsPage() {
                 <Text style={[styles.creditName, { color: colors.text }]}>
                   Daniel Kosukhin
                 </Text>
-                <Text style={[styles.creditRole, { color: colors.icon }]}>
+                <Text style={[styles.creditRole, { color: colors.secondaryText || colors.icon }]}>
                   Developer
                 </Text>
               </View>

@@ -27,12 +27,14 @@ export default function TabBar({ state, descriptors, navigation }: { state: any;
     }]}>
       {state.routes.map((route: { key: string | number; name: string; params: object | undefined; }, index: any) => {
         const { options } = descriptors[route.key];
-        const label =
+        let label =
           options.tabBarLabel !== undefined
             ? options.tabBarLabel
             : options.title !== undefined
               ? options.title
               : route.name;
+
+        if (route.name === "navigation") label = "Map";
 
         const isFocused = state.index === index;
         

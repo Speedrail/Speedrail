@@ -5,14 +5,14 @@ import Feather from '@expo/vector-icons/Feather';
 import * as Location from 'expo-location';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LiveTrackingView from '../../components/live-tracking-view';
@@ -272,9 +272,9 @@ export default function HomePage() {
                 style={{ marginLeft: 'auto' }}
                 value={oldAgeRoute}
                 onValueChange={() => setOldAgeRoute(!oldAgeRoute)}
-                trackColor={{ true: colors.tint, false: '#9ca3af' }}
+                trackColor={{ true: colors.accentBlue || colors.tint, false: actualTheme === 'dark' ? '#475569' : '#9ca3af' }}
                 thumbColor={'#ffffff'}
-                ios_backgroundColor={'#9ca3af'}
+                ios_backgroundColor={actualTheme === 'dark' ? '#475569' : '#9ca3af'}
               />
             </View>
 
@@ -410,7 +410,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   btnDisabled: {
-    backgroundColor: '#9ca3af',
+    opacity: 0.5,
   },
   btnText: {
     fontSize: 17,
