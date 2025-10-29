@@ -1,5 +1,5 @@
+import { cacheService } from '@/services/cache-service';
 import {
-    fetchAllTransitStations,
     fetchRealtimeVehiclePositions,
     fetchServiceAlerts,
     fetchSubwayRealtimePositions,
@@ -30,7 +30,7 @@ export function useTransitData() {
     try {
       setLoading(true);
       
-      const stations = await fetchAllTransitStations();
+      const stations = await cacheService.getAllStations();
       setSubwayStations(stations.subway);
       setLirrStations(stations.lirr);
       setMetroNorthStations(stations.metroNorth);
@@ -65,7 +65,6 @@ export function useNearbyTransit(latitude?: number, longitude?: number, radiusMe
     metroNorth: RailStation[];
     sir: RailStation[];
     ferry: FerryStop[];
-    bus: any[];
   } | null>(null);
   const [loading, setLoading] = useState(false);
 

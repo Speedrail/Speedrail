@@ -1,5 +1,6 @@
 import { SelectedRouteProvider } from '@/contexts/selected-route-context';
 import { ThemeProvider as CustomThemeProvider, useTheme } from '@/contexts/theme-context';
+import { useCacheManager } from '@/hooks/use-cache-manager';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -11,6 +12,7 @@ export const unstable_settings = {
 
 function RootLayoutContent() {
   const { actualTheme } = useTheme();
+  useCacheManager();
 
   return (
     <SelectedRouteProvider>

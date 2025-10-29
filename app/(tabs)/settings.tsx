@@ -1,8 +1,12 @@
 import { Colors } from '@/constants/theme';
 import { useTheme } from '@/contexts/theme-context';
+import { cacheService } from '@/services/cache-service';
 import Feather from '@expo/vector-icons/Feather';
-import React, { useState } from 'react';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Image,
   ScrollView,
   StyleSheet,
@@ -18,6 +22,9 @@ export default function SettingsPage() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [locationEnabled, setLocationEnabled] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [cacheAge, setCacheAge] = useState<number | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState<string | null>(null);
 
   const isDark = actualTheme === 'dark';
   const colors = Colors[actualTheme];
@@ -25,6 +32,74 @@ export default function SettingsPage() {
   const handleThemeChange = (mode: 'light' | 'dark' | 'auto') => {
     setThemeMode(mode);
   };
+
+  const loadCacheInfo = useCallback(async () => {
+    try {
+      await cacheService.initialize();
+      const age = await cacheService.getCacheAgeInDays();
+      setCacheAge(age);
+      
+      const timestamp = await cacheService.getLastFetchTimestamp();
+      if (timestamp) {
+        const date = new Date(timestamp);
+        setLastRefreshTime(date.toLocaleDateString() + ' ' + date.toLocaleTimeString());
+      }
+    } catch (error) {
+      console.error('Failed to load cache info:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadCacheInfo();
+  }, [loadCacheInfo]);
+
+  const handleRefreshData = useCallback(async () => {
+    try {
+      setIsRefreshing(true);
+      
+      await cacheService.fetchAndCacheAllStations();
+      await loadCacheInfo();
+      
+      Alert.alert(
+        'Success',
+        'Transit data has been updated successfully.',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('Failed to refresh data:', error);
+      Alert.alert(
+        'Error',
+        'Failed to update transit data. Please check your internet connection and try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [loadCacheInfo]);
+
+  const handleClearCache = useCallback(async () => {
+    Alert.alert(
+      'Clear Cache',
+      'Are you sure you want to clear all cached data? The app will need to download transit data again.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await cacheService.clearAllCache();
+              await loadCacheInfo();
+              Alert.alert('Success', 'Cache cleared successfully.');
+            } catch (error) {
+              console.error('Failed to clear cache:', error);
+              Alert.alert('Error', 'Failed to clear cache.');
+            }
+          },
+        },
+      ]
+    );
+  }, [loadCacheInfo]);
 
   return (
     <SafeAreaView 
@@ -35,12 +110,10 @@ export default function SettingsPage() {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Header */}
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.text }]}>Settings</Text>
         </View>
 
-        {/* Appearance Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Appearance</Text>
           
@@ -122,7 +195,77 @@ export default function SettingsPage() {
           </View>
         </View>
 
-        {/* Features Section */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Data & Storage</Text>
+          
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder, borderWidth: 1 }]}>
+            <View style={styles.cacheInfoContainer}>
+              <View style={styles.settingInfo}>
+                <MaterialCommunityIcons name="database" size={20} color={colors.icon} />
+                <View style={styles.cacheTextContainer}>
+                  <Text style={[styles.settingLabel, { color: colors.text }]}>
+                    Cached Transit Data
+                  </Text>
+                  <Text style={[styles.cacheSubtext, { color: colors.secondaryText || colors.icon }]}>
+                    {cacheAge === null 
+                      ? 'No cached data' 
+                      : cacheAge === 0 
+                      ? 'Updated today'
+                      : `Updated ${cacheAge} day${cacheAge !== 1 ? 's' : ''} ago`}
+                  </Text>
+                  {lastRefreshTime && (
+                    <Text style={[styles.cacheTimestamp, { color: colors.metaText || colors.secondaryText }]}>
+                      {lastRefreshTime}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            </View>
+
+            <View style={[styles.divider, { backgroundColor: colors.cardBorder }]} />
+
+            <TouchableOpacity 
+              style={styles.settingRow}
+              onPress={handleRefreshData}
+              disabled={isRefreshing}>
+              <View style={styles.settingInfo}>
+                <Feather name="download" size={20} color={isRefreshing ? colors.secondaryText : colors.icon} />
+                <Text style={[styles.settingLabel, { color: isRefreshing ? colors.secondaryText : colors.text }]}>
+                  Update Transit Data
+                </Text>
+              </View>
+              {isRefreshing ? (
+                <ActivityIndicator size="small" color={colors.tint} />
+              ) : (
+                <Feather name="chevron-right" size={20} color={colors.icon} />
+              )}
+            </TouchableOpacity>
+
+            <View style={[styles.divider, { backgroundColor: colors.cardBorder }]} />
+
+            <TouchableOpacity 
+              style={styles.settingRow}
+              onPress={handleClearCache}>
+              <View style={styles.settingInfo}>
+                <Feather name="trash-2" size={20} color="#ef4444" />
+                <Text style={[styles.settingLabel, { color: '#ef4444' }]}>
+                  Clear Cache
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={20} color="#ef4444" />
+            </TouchableOpacity>
+
+            <View style={[styles.divider, { backgroundColor: colors.cardBorder }]} />
+
+            <View style={styles.cacheNoteContainer}>
+              <MaterialCommunityIcons name="information" size={16} color={colors.secondaryText} />
+              <Text style={[styles.cacheNote, { color: colors.secondaryText }]}>
+                Data automatically updates every 30 days. Manual updates ensure you have the latest station information.
+              </Text>
+            </View>
+          </View>
+        </View>
+
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Features</Text>
           
@@ -181,7 +324,6 @@ export default function SettingsPage() {
           </View>
         </View>
 
-        {/* Credits Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Credits</Text>
           
@@ -190,15 +332,9 @@ export default function SettingsPage() {
               Developed by
             </Text>
 
-            {/* Ethan Kang */}
             <View style={styles.creditItem}>
               <View style={[styles.avatarPlaceholder, { borderColor: colors.icon }]}>
                 <Feather name="user" size={32} color={colors.icon} />
-                {/* actual image would go here but only daniel for now :D */}
-                {/* <Image 
-                  source={require('@/assets/images/ethan-kang.jpg')} 
-                  style={styles.avatar}
-                /> */}
               </View>
               <View style={styles.creditInfo}>
                 <Text style={[styles.creditName, { color: colors.text }]}>
@@ -212,7 +348,6 @@ export default function SettingsPage() {
 
             <View style={[styles.divider, { backgroundColor: colors.cardBorder }]} />
 
-            {/* Daniel Kosukhin */}
             <View style={styles.creditItem}>
               <Image 
                 source={require('@/assets/images/daniel-kosukhin.jpg')} 
@@ -351,5 +486,31 @@ const styles = StyleSheet.create({
   },
   appInfoText: {
     fontSize: 12,
+  },
+  cacheInfoContainer: {
+    paddingVertical: 8,
+  },
+  cacheTextContainer: {
+    flex: 1,
+    gap: 4,
+  },
+  cacheSubtext: {
+    fontSize: 14,
+    marginTop: 2,
+  },
+  cacheTimestamp: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  cacheNoteContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  cacheNote: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
   },
 });

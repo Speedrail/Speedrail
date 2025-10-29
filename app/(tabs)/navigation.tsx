@@ -3,10 +3,8 @@ import StationDetail from '@/components/station-detail';
 import { Colors } from '@/constants/theme';
 import { useTabBar } from '@/contexts/tab-bar-context';
 import { useTheme } from '@/contexts/theme-context';
+import { cacheService } from '@/services/cache-service';
 import {
-  fetchAllTransitStations,
-  fetchBusStops,
-  getDetailedStationInfo,
   setBusApiKey,
   type BusStop,
   type DetailedStationInfo,
@@ -124,6 +122,8 @@ export default function NavigationPage() {
   const [alertFilter, setAlertFilter] = useState<'all' | 'no-alerts' | 'has-alerts'>('all');
   const [stationDetailsCache, setStationDetailsCache] = useState<Map<string, DetailedStationInfo>>(new Map());
   const [loadingStationDetails, setLoadingStationDetails] = useState<Set<string>>(new Set());
+  const stationDetailsCacheRef = useRef<Map<string, DetailedStationInfo>>(new Map());
+  const loadingStationDetailsRef = useRef<Set<string>>(new Set());
   const { setTabBarVisible } = useTabBar();
   const mapRef = useRef<React.ElementRef<typeof MapView> | null>(null);
   const bottomSheetModalRef = useRef<BottomSheetModal>(null);
@@ -149,6 +149,14 @@ export default function NavigationPage() {
   const [stationInfo, setStationInfo] = useState<DetailedStationInfo | null>(null);
   const [stationLoading, setStationLoading] = useState(false);
   const snapPoints = useMemo(() => ['60%', '90%'], []);
+
+  useEffect(() => {
+    stationDetailsCacheRef.current = stationDetailsCache;
+  }, [stationDetailsCache]);
+
+  useEffect(() => {
+    loadingStationDetailsRef.current = loadingStationDetails;
+  }, [loadingStationDetails]);
 
   useEffect(() => {
     setBusApiKey(process.env.EXPO_PUBLIC_MTA_BUS_API_KEY || '');
@@ -244,7 +252,7 @@ export default function NavigationPage() {
   const loadTransitData = useCallback(async () => {
     try {
       setDataLoading(true);
-      const data = await fetchAllTransitStations();
+      const data = await cacheService.getAllStations();
 
       const stations: TransitStation[] = [
         ...convertToTransitStation(data.subway, 'subway'),
@@ -254,27 +262,18 @@ export default function NavigationPage() {
         ...convertToTransitStation(data.ferry, 'ferry'),
       ];
 
-      if (userLocation) {
-        const busStops = await fetchBusStops(userLocation.latitude, userLocation.longitude, 8000);
-        const busStations = convertToTransitStation(busStops, 'bus');
-        stations.push(...busStations);
-      }
-
       setAllStations(stations);
     } catch (error) {
       console.error('Error loading transit data:', error);
     } finally {
       setDataLoading(false);
     }
-  }, [userLocation]);
-
-  useEffect(() => {
-    requestLocationPermission();
   }, []);
 
   useEffect(() => {
+    requestLocationPermission();
     loadTransitData();
-  }, [loadTransitData]);
+  }, []);
 
   const requestLocationPermission = useCallback(async () => {
     try {
@@ -361,19 +360,18 @@ export default function NavigationPage() {
   const getStationDetails = useCallback(async (station: TransitStation): Promise<DetailedStationInfo | null> => {
     const cacheKey = station.id;
     
-    if (stationDetailsCache.has(cacheKey)) {
-      return stationDetailsCache.get(cacheKey)!;
+    if (stationDetailsCacheRef.current.has(cacheKey)) {
+      return stationDetailsCacheRef.current.get(cacheKey)!;
     }
     
-    if (loadingStationDetails.has(cacheKey)) {
+    if (loadingStationDetailsRef.current.has(cacheKey)) {
       return null;
     }
     
     try {
       setLoadingStationDetails(prev => new Set(prev).add(cacheKey));
       
-      const originalId = station.id.replace(`${station.type}-`, '');
-      const details = await getDetailedStationInfo(originalId, station.type);
+      const details = await cacheService.getOrFetchStationDetails(station.id, station.type);
 
       if (details) {
         setStationDetailsCache(prev => new Map(prev).set(cacheKey, details));
@@ -391,7 +389,7 @@ export default function NavigationPage() {
         return newSet;
       });
     }
-  }, [stationDetailsCache, loadingStationDetails]);
+  }, []);
 
   const filteredStations = useMemo(() => {
     const stations = allStations.filter((station) => {
@@ -479,7 +477,6 @@ export default function NavigationPage() {
     { key: 'metro-north' as const, label: 'Metro-North', icon: 'train' },
     { key: 'ferry' as const, label: 'Ferry', icon: 'ferry' },
     { key: 'sir' as const, label: 'SIR', icon: 'train' },
-    { key: 'bus' as const, label: 'Bus', icon: 'bus' },
   ], []);
 
   const handleFilterChange = useCallback((key: TransitType | 'all') => {
@@ -493,8 +490,7 @@ export default function NavigationPage() {
     bottomSheetModalRef.current?.present();
     
     try {
-      const originalId = station.id.replace(`${station.type}-`, '');
-      const info = await getDetailedStationInfo(originalId, station.type);
+      const info = await cacheService.getOrFetchStationDetails(station.id, station.type);
       if (info) {
         setStationDetailsCache(prev => {
           const newCache = new Map(prev);
@@ -556,13 +552,13 @@ export default function NavigationPage() {
 
   const preloadStationDetails = useCallback(async (stations: TransitStation[]) => {
     const stationsToLoad = stations
-      .filter(station => !stationDetailsCache.has(station.id) && !loadingStationDetails.has(station.id))
+      .filter(station => !stationDetailsCacheRef.current.has(station.id) && !loadingStationDetailsRef.current.has(station.id))
       .slice(0, 10);
     
     if (stationsToLoad.length > 0) {
       Promise.all(stationsToLoad.map(station => getStationDetails(station)));
     }
-  }, [stationDetailsCache, loadingStationDetails, getStationDetails]);
+  }, [getStationDetails]);
 
   useEffect(() => {
     return () => {
@@ -572,9 +568,15 @@ export default function NavigationPage() {
     };
   }, []);
 
+  const filteredStationsIdsRef = useRef<string>('');
+
   useEffect(() => {
     if (filteredStations.length > 0) {
-      preloadStationDetails(filteredStations);
+      const stationIds = filteredStations.slice(0, 10).map(s => s.id).join(',');
+      if (stationIds !== filteredStationsIdsRef.current) {
+        filteredStationsIdsRef.current = stationIds;
+        preloadStationDetails(filteredStations);
+      }
     }
   }, [filteredStations, preloadStationDetails]);
 
@@ -736,10 +738,6 @@ export default function NavigationPage() {
               <View style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: '#9C27B0' }]} />
                 <Text style={[styles.legendText, { color: colors.text }]}>SIR</Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: '#4CAF50' }]} />
-                <Text style={[styles.legendText, { color: colors.text }]}>Bus</Text>
               </View>
             </View>
           </View>

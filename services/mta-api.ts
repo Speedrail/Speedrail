@@ -191,6 +191,9 @@ const addressCache = new Map<string, { address: string | undefined; timestamp: n
 const ADDRESS_CACHE_DURATION = 7 * 24 * 60 * 60 * 1000;
 let lastAddressRequestTime = 0;
 const ADDRESS_REQUEST_DELAY = 2000;
+let addressFetchingDisabled = false;
+let consecutiveAddressFailures = 0;
+const MAX_CONSECUTIVE_FAILURES = 3;
 
 export function setBusApiKey(key: string) {
   MTA_BUS_API_KEY = key;
@@ -586,90 +589,114 @@ export async function fetchSubwayStations(): Promise<SubwayStation[]> {
 
 export async function fetchBusStops(latitude?: number, longitude?: number, radius?: number): Promise<BusStop[]> {
   try {
-    if (stationCache.bus) {
-      const age = Date.now() - stationCache.bus.timestamp;
-      if (age < CACHE_DURATION) {
-        const allBusStops = stationCache.bus.data;
-        
-        if (latitude && longitude && radius) {
-          const radiusInMeters = radius;
-          return allBusStops.filter(stop => {
-            const distance = haversineDistance(latitude, longitude, stop.latitude, stop.longitude);
-            return distance <= radiusInMeters;
-          });
-        }
-        
-        return allBusStops.slice(0, 1000);
-      }
+    if (!MTA_BUS_API_KEY) {
+      console.warn('MTA Bus API key not set. Call setBusApiKey() first.');
+      return [];
     }
 
-    console.log('Fetching MTA bus stops from NYC Open Data...');
+    if (!latitude || !longitude) {
+      console.warn('Latitude and longitude required for bus stop search');
+      return [];
+    }
+
+    const radiusInMeters = radius || 500;
+    const latSpan = (radiusInMeters / 111000) * 2;
+    const lonSpan = (radiusInMeters / (111000 * Math.cos(latitude * Math.PI / 180))) * 2;
+
+    const url = `https://bustime.mta.info/api/where/stops-for-location.json?key=${MTA_BUS_API_KEY}&lat=${latitude}&lon=${longitude}&latSpan=${latSpan}&lonSpan=${lonSpan}`;
     
-    const response = await fetch('https://data.ny.gov/resource/pvub-uz38.json?$limit=50000');
+    console.log('Fetching MTA bus stops from BusTime API...');
+    
+    const response = await fetch(url);
     
     if (!response.ok) {
       console.error(`Failed to fetch bus stops: ${response.status}`);
       return [];
     }
     
-    const data = await response.json();
+    const result = await response.json();
+    
+    if (!result.data || !result.data.stops) {
+      console.error('Invalid response format from BusTime API');
+      return [];
+    }
+
     const busStops: BusStop[] = [];
     
-    for (const stop of data) {
-      if (stop.latitude && stop.longitude && stop.stop_name) {
-        const lat = parseFloat(stop.latitude);
-        const lon = parseFloat(stop.longitude);
+    for (const stop of result.data.stops) {
+      if (stop.lat && stop.lon && stop.name) {
+        const routes = stop.routes ? stop.routes.map((r: any) => r.shortName || r.id) : [];
         
-        if (!isNaN(lat) && !isNaN(lon)) {
-          const busStop: BusStop = {
-            id: stop.stop_id || `bus-${stop.stop_code || busStops.length}`,
-            name: stop.stop_name,
-            routes: [],
-            latitude: lat,
-            longitude: lon,
-            wheelchairBoarding: 1,
-          };
-          
-          busStops.push(busStop);
-          busStopsCache.set(busStop.id, busStop);
-        }
+        const busStop: BusStop = {
+          id: stop.id,
+          name: stop.name,
+          routes: routes,
+          latitude: stop.lat,
+          longitude: stop.lon,
+          direction: stop.direction,
+          wheelchairBoarding: stop.wheelchairBoarding,
+        };
+        
+        busStops.push(busStop);
+        busStopsCache.set(busStop.id, busStop);
       }
     }
     
-    stationCache.bus = {
-      data: busStops,
-      timestamp: Date.now(),
-    };
+    console.log(`Fetched ${busStops.length} bus stops from MTA BusTime API`);
     
-    console.log(`Fetched ${busStops.length} bus stops from NYC Open Data`);
-    
-    if (latitude && longitude && radius) {
-      const radiusInMeters = radius;
-      return busStops.filter(stop => {
-        const distance = haversineDistance(latitude, longitude, stop.latitude, stop.longitude);
-        return distance <= radiusInMeters;
-      });
-    }
-    
-    return busStops.slice(0, 1000);
+    return busStops;
   } catch (error) {
     console.error('Error fetching bus stops:', error);
+    return [];
+  }
+}
+
+export async function fetchBusStopDetails(stopId: string): Promise<BusStop | null> {
+  try {
+    if (!MTA_BUS_API_KEY) {
+      console.warn('MTA Bus API key not set. Call setBusApiKey() first.');
+      return null;
+    }
+
+    const cached = busStopsCache.get(stopId);
+    if (cached && cached.routes && cached.routes.length > 0) {
+      return cached;
+    }
+
+    const url = `https://bustime.mta.info/api/where/stop/${stopId}.json?key=${MTA_BUS_API_KEY}`;
     
-    if (stationCache.bus) {
-      const allBusStops = stationCache.bus.data;
-      
-      if (latitude && longitude && radius) {
-        const radiusInMeters = radius;
-        return allBusStops.filter(stop => {
-          const distance = haversineDistance(latitude, longitude, stop.latitude, stop.longitude);
-          return distance <= radiusInMeters;
-        });
-      }
-      
-      return allBusStops.slice(0, 1000);
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      console.error(`Failed to fetch bus stop details: ${response.status}`);
+      return null;
     }
     
-    return [];
+    const result = await response.json();
+    
+    if (!result.data || !result.data.entry) {
+      console.error('Invalid response format from BusTime API');
+      return null;
+    }
+
+    const stop = result.data.entry;
+    const routes = stop.routes ? stop.routes.map((r: any) => r.shortName || r.id) : [];
+    
+    const busStop: BusStop = {
+      id: stop.id,
+      name: stop.name,
+      routes: routes,
+      latitude: stop.lat,
+      longitude: stop.lon,
+      direction: stop.direction,
+      wheelchairBoarding: stop.wheelchairBoarding,
+    };
+    
+    busStopsCache.set(busStop.id, busStop);
+    return busStop;
+  } catch (error) {
+    console.error('Error fetching bus stop details:', error);
+    return null;
   }
 }
 
@@ -758,7 +785,11 @@ async function parseGTFSStops(zipUrl: string, type: 'lirr' | 'metro-north' | 'si
       
       const locationType = locationTypeIndex !== -1 ? values[locationTypeIndex] : '';
       
-      if (locationType === '1' || locationType === '0' || locationType === '' || !locationType) {
+      const isValidStop = type === 'sir' ? 
+        (locationType === '1') : 
+        (locationType === '1' || locationType === '0' || locationType === '' || !locationType);
+      
+      if (isValidStop) {
         const lat = parseFloat(values[stopLatIndex]);
         const lon = parseFloat(values[stopLonIndex]);
         const stopName = values[stopNameIndex];
@@ -1166,10 +1197,7 @@ export async function fetchAllTransitStations(): Promise<{
 }
 
 export async function searchNearbyTransit(latitude: number, longitude: number, radiusMeters: number = 500) {
-  const [stations, busStops] = await Promise.all([
-    fetchAllTransitStations(),
-    fetchBusStops(latitude, longitude, radiusMeters),
-  ]);
+  const stations = await fetchAllTransitStations();
   
   const nearbySubway = stations.subway.filter(s => 
     haversineDistance(latitude, longitude, s.latitude, s.longitude) <= radiusMeters
@@ -1197,14 +1225,13 @@ export async function searchNearbyTransit(latitude: number, longitude: number, r
     metroNorth: nearbyMetroNorth,
     sir: nearbySIR,
     ferry: nearbyFerry,
-    bus: busStops,
   };
 }
 
 export async function getDetailedStationInfo(
   stationId: string,
   type: 'subway' | 'bus' | 'lirr' | 'metro-north' | 'ferry' | 'sir',
-  includeAddress: boolean = true
+  includeAddress: boolean = false
 ): Promise<DetailedStationInfo | null> {
   try {
     let baseStation: any = null;
@@ -1246,7 +1273,7 @@ export async function getDetailedStationInfo(
         borough = baseStation.borough;
       }
     } else if (type === 'bus') {
-      baseStation = busStopsCache.get(stationId);
+      baseStation = await fetchBusStopDetails(stationId);
       if (baseStation) {
         routes = baseStation.routes || [];
       }
@@ -1381,6 +1408,10 @@ async function getStationAddress(
   if (cached && (Date.now() - cached.timestamp < ADDRESS_CACHE_DURATION)) {
     return cached.address;
   }
+
+  if (addressFetchingDisabled) {
+    return undefined;
+  }
   
   const timeSinceLastRequest = Date.now() - lastAddressRequestTime;
   if (timeSinceLastRequest < ADDRESS_REQUEST_DELAY) {
@@ -1406,12 +1437,18 @@ async function getStationAddress(
     clearTimeout(timeoutId);
     
     if (!response.ok) {
-      console.warn(`Address lookup failed with status ${response.status}`);
+      consecutiveAddressFailures++;
+      if (consecutiveAddressFailures >= MAX_CONSECUTIVE_FAILURES) {
+        addressFetchingDisabled = true;
+        console.warn('Address fetching disabled after multiple failures');
+      }
       addressCache.set(cacheKey, { address: undefined, timestamp: Date.now() });
       return undefined;
     }
     
     const data = await response.json();
+    
+    consecutiveAddressFailures = 0;
     
     let address: string | undefined;
     
@@ -1451,10 +1488,10 @@ async function getStationAddress(
     addressCache.set(cacheKey, { address, timestamp: Date.now() });
     return address;
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.warn('Address lookup timed out');
-    } else {
-      console.warn('Error fetching address (non-critical):', error instanceof Error ? error.message : 'Unknown error');
+    consecutiveAddressFailures++;
+    if (consecutiveAddressFailures >= MAX_CONSECUTIVE_FAILURES) {
+      addressFetchingDisabled = true;
+      console.warn('Address fetching disabled due to network issues');
     }
     addressCache.set(cacheKey, { address: undefined, timestamp: Date.now() });
     return undefined;
