@@ -16,6 +16,9 @@
       },
       "config": {
         "googleMapsApiKey": "${GOOGLE_MAPS_API_KEY}"
+      },
+      "entitlements": {
+        "aps-environment": "production"
       }
     },
     "notification": {

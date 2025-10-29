@@ -42,6 +42,11 @@ jobs:
     - name: Install dependencies
       run: npm ci --prefer-offline --no-audit --no-fund
     
+    - name: Clear old credentials
+      run: eas credentials --platform ios --profile preview --clear-provisioning-profile --non-interactive || true
+      env:
+        EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    
     - name: Run EAS Build for iOS (Local)
       run: eas build --platform ios --profile preview --local --non-interactive
       env:
