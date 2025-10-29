@@ -7,8 +7,8 @@ on:
 
 jobs:
   build:
-    runs-on: macos-15
-     
+    runs-on: macos-latest
+    
     steps:
     - uses: actions/checkout@v4
     
@@ -18,32 +18,17 @@ jobs:
         node-version: '20'
         cache: 'npm'
     
-    - name: Cache CocoaPods
-      uses: actions/cache@v4
+    - name: Setup Expo CLI
+      uses: expo/expo-github-action@v8
       with:
-        path: ios/Pods
-        key: ${{ runner.os }}-pods-${{ hashFiles('ios/Podfile.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-pods-
-    
-    - name: Cache Expo build artifacts
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.eas-build-local
-          ~/Library/Developer/Xcode/DerivedData
-        key: ${{ runner.os }}-eas-${{ hashFiles('**/package-lock.json') }}
-        restore-keys: |
-          ${{ runner.os }}-eas-
-    
-    - name: Setup Expo and EAS CLI
-      run: npm install -g eas-cli
+        eas-version: latest
+        token: ${{ secrets.EXPO_TOKEN }}
     
     - name: Install dependencies
-      run: npm ci --prefer-offline --no-audit --no-fund
+      run: npm install
     
-    - name: Prebuild iOS project
-      run: npx expo prebuild --platform ios --clean
+    - name: Run EAS Build for iOS (Local)
+      run: eas build --platform ios --local --non-interactive
       env:
         GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
     
