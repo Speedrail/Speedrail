@@ -51,6 +51,14 @@
             "backgroundColor": "#000000"
           }
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/speedrail.png",
+          "color": "#6a99e3",
+          "sounds": []
+        }
       ]
     ],
     "experiments": {

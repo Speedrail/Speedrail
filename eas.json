@@ -16,22 +16,12 @@
     },
     "preview": {
       "distribution": "internal",
-      "ios": {
-        "capabilities": {
-          "pushNotifications": true
-        }
-      },
       "env": {
         "GOOGLE_MAPS_API_KEY": "$GOOGLE_MAPS_API_KEY"
       }
     },
     "production": {
       "autoIncrement": true,
-      "ios": {
-        "capabilities": {
-          "pushNotifications": true
-        }
-      },
       "env": {
         "GOOGLE_MAPS_API_KEY": "$GOOGLE_MAPS_API_KEY"
       }
