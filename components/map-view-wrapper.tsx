@@ -1,4 +1,3 @@
-// Native re-export of react-native-maps
 import type { Region as RegionNative } from 'react-native-maps';
 import MapViewNative, { Marker as MarkerNative, PROVIDER_GOOGLE as PROVIDER_GOOGLE_NATIVE } from 'react-native-maps';
 
