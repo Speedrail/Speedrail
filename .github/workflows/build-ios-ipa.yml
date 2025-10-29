@@ -30,19 +30,13 @@ jobs:
     - name: Run EAS Build for iOS (Local)
       run: eas build --platform ios --local --non-interactive
       env:
+        EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
     
-    - name: Build unsigned IPA with xcodebuild
-      run: |
-        cd ios
-        xcodebuild -workspace Speedrail.xcworkspace -scheme Speedrail -configuration Release -sdk iphoneos -archivePath ./build/Speedrail.xcarchive archive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
-        xcodebuild -exportArchive -archivePath ./build/Speedrail.xcarchive -exportPath ./build -exportOptionsPlist exportOptions.plist
-    
-    - name: Upload Unsigned IPA Artifact
+    - name: Upload IPA Artifact
       uses: actions/upload-artifact@v4
       if: success()
       with:
-        name: speedrail-ios-unsigned-${{ github.sha }}
-        path: |
-          ios/build/*.ipa
+        name: Speedrail-iOS-${{ github.sha }}
+        path: '**/*.ipa'
         retention-days: 5
