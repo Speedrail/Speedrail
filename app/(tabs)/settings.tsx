@@ -5,15 +5,15 @@ import Feather from '@expo/vector-icons/Feather';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -333,9 +333,10 @@ export default function SettingsPage() {
             </Text>
 
             <View style={styles.creditItem}>
-              <View style={[styles.avatarPlaceholder, { borderColor: colors.icon }]}>
-                <Feather name="user" size={32} color={colors.icon} />
-              </View>
+              <Image 
+                source={require('@/assets/images/ethan-kang.png')} 
+                style={styles.avatar}
+              />
               <View style={styles.creditInfo}>
                 <Text style={[styles.creditName, { color: colors.text }]}>
                   Ethan Kang
