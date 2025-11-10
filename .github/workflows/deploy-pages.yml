@@ -2,14 +2,16 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    branches:
+      - '**'
   workflow_dispatch:
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    concurrency:
+      group: pages-deploy
+      cancel-in-progress: true
     permissions:
       contents: read
       pages: write
@@ -32,6 +34,11 @@ jobs:
       run: npx expo export -p web
       env:
         GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+        EXPO_PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+    
+    - name: Add SPA fallback (404.html)
+      run: |
+        cp ./dist/index.html ./dist/404.html
         
     - name: Setup Pages
       uses: actions/configure-pages@v4

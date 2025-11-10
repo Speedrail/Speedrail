@@ -3,18 +3,19 @@ import { useTabBar } from '@/contexts/tab-bar-context';
 import { useTheme } from '@/contexts/theme-context';
 import Feather from '@expo/vector-icons/Feather';
 import { PlatformPressable } from '@react-navigation/elements';
-import { useLinkBuilder } from '@react-navigation/native';
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { Easing, interpolate, interpolateColor, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TabBar({ state, descriptors, navigation }: { state: any; descriptors: any; navigation: any }) {
-  const { buildHref } = useLinkBuilder();
   const insets = useSafeAreaInsets();
   const { isTabBarVisible } = useTabBar();
   const { actualTheme } = useTheme();
   const colors = Colors[actualTheme];
+
+  // Build relative hrefs so the Expo Router basePath (e.g. /Speedrail/) works on GitHub Pages
+  const buildHref = (name: string) => (name === 'index' ? './' : `./${name}`);
 
   if (!isTabBarVisible) {
     return null;
@@ -201,6 +202,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
     overflow: 'visible',
+    zIndex: 1000,
   },
 
   barItem: {
