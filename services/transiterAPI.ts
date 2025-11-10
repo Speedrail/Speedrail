@@ -228,6 +228,10 @@ export async function getStopArrivals(
 export const TransiterSystems = {
   NYC_SUBWAY: 'us-ny-subway',
   NYC_BUS: 'us-ny-nycbus',
+  NYC_LIRR: 'us-ny-lirr',
+  NYC_METRO_NORTH: 'us-ny-mnr',
+  NYC_SIR: 'us-ny-sir',
+  NYC_FERRY: 'us-ny-nycferry',
 } as const;
 
 export type SystemId = typeof TransiterSystems[keyof typeof TransiterSystems];

@@ -77,8 +77,7 @@ const CustomMarker = React.memo(({
   markerIcon: string;
   onPress: () => void;
 }) => {
-  const handlePress = (e: any) => {
-    e.stopPropagation();
+  const handlePress = () => {
     onPress();
   };
 

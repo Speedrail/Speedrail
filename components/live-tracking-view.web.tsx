@@ -9,9 +9,10 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from './map-view-wrapper';
 import { useSelectedRoute } from '../contexts/selected-route-context';
 import { useTabBar } from '../contexts/tab-bar-context';
-import { RouteStep, TransitRoute } from '../services/google-maps-api';
+import { GoogleMapsService, RouteStep, TransitRoute } from '../services/google-maps-api';
 import {
     getNearbyStops,
     getStopArrivals,
@@ -34,6 +35,15 @@ export default function LiveTrackingView({ route, onBack, oldAgeRoute }: LiveTra
   const { selectedRoute, setSelectedRoute } = useSelectedRoute();
   const { setTabBarVisible } = useTabBar();
   const leg = route.legs?.[0];
+  const [region, setRegion] = useState({
+    latitude: leg?.start_location?.lat || 40.7128,
+    longitude: leg?.start_location?.lng || -74.0060,
+    latitudeDelta: 0.05,
+    longitudeDelta: 0.05,
+  });
+  const [routeCoordinates, setRouteCoordinates] = useState<
+    { latitude: number; longitude: number }[]
+  >([]);
   
   const [stopArrivals, setStopArrivals] = useState<Map<string, StopWithArrivals>>(new Map());
   const [isLoadingArrivals, setIsLoadingArrivals] = useState(false);
@@ -47,6 +57,21 @@ export default function LiveTrackingView({ route, onBack, oldAgeRoute }: LiveTra
       setTabBarVisible(true);
     };
   }, [setTabBarVisible]);
+
+  useEffect(() => {
+    if (!leg) return;
+    setRegion({
+      latitude: (leg.start_location.lat + leg.end_location.lat) / 2,
+      longitude: (leg.start_location.lng + leg.end_location.lng) / 2,
+      latitudeDelta: 0.05,
+      longitudeDelta: 0.05,
+    });
+
+    const decodedRoute = GoogleMapsService.decodePolyline(
+      route.overview_polyline.points
+    );
+    setRouteCoordinates(decodedRoute);
+  }, [route]);
 
   // Update current time every 30 seconds for countdown timers
   useEffect(() => {
@@ -77,6 +102,20 @@ export default function LiveTrackingView({ route, onBack, oldAgeRoute }: LiveTra
     }
   }, []);
 
+  const resolveSystemId = useCallback((vehicleType?: string, lineName?: string, headsign?: string) => {
+    const t = (vehicleType || '').toUpperCase();
+    const name = (lineName || '').toUpperCase();
+    const head = (headsign || '').toUpperCase();
+    if (t === 'SUBWAY') return TransiterSystems.NYC_SUBWAY;
+    if (t === 'BUS') return TransiterSystems.NYC_BUS;
+    if (t === 'FERRY' || name.includes('FERRY') || head.includes('FERRY')) return TransiterSystems.NYC_FERRY as any;
+    if (name.includes('LIRR') || name.includes('LONG ISLAND')) return TransiterSystems.NYC_LIRR as any;
+    if (name.includes('METRO-NORTH') || name.includes('METRO NORTH') || name.includes('MNR')) return TransiterSystems.NYC_METRO_NORTH as any;
+    if (name.includes('STATEN ISLAND RAILWAY') || name.includes('SIR') || head.includes('STATEN ISLAND')) return TransiterSystems.NYC_SIR as any;
+    if (['TRAIN','HEAVY_RAIL','COMMUTER_TRAIN','RAIL','METRO_RAIL'].includes(t)) return TransiterSystems.NYC_LIRR as any;
+    return TransiterSystems.NYC_SUBWAY;
+  }, []);
+
   const fetchStopArrivals = useCallback(async () => {
     if (!leg || !leg.steps) return;
     
@@ -92,9 +131,8 @@ export default function LiveTrackingView({ route, onBack, oldAgeRoute }: LiveTra
 
         const departureStop = transitDetails.departure_stop;
         const vehicleType = transitDetails.line?.vehicle?.type;
-        const systemId = vehicleType === 'SUBWAY' 
-          ? TransiterSystems.NYC_SUBWAY 
-          : TransiterSystems.NYC_BUS;
+        const lineName = transitDetails.line?.short_name || transitDetails.line?.name;
+        const systemId = resolveSystemId(vehicleType, lineName, transitDetails.headsign);
 
         const transiterStopId = await findNearestTransiterStop(
           departureStop.location.lat,
@@ -170,6 +208,8 @@ export default function LiveTrackingView({ route, onBack, oldAgeRoute }: LiveTra
         return <Feather name="square" size={16} color="#6a99e3" />;
       } else if (vehicleType === 'BUS') {
         return <Feather name="truck" size={16} color="#6a99e3" />;
+      } else if (vehicleType === 'FERRY') {
+        return <Feather name="anchor" size={16} color="#6a99e3" />;
       }
       return <Feather name="navigation" size={16} color="#6a99e3" />;
     }
@@ -243,16 +283,57 @@ export default function LiveTrackingView({ route, onBack, oldAgeRoute }: LiveTra
           </TouchableOpacity>
         )}
 
-        {/* Web placeholder for map - react-native-maps doesn't work on web */}
-        <View style={styles.map}>
-          <View style={styles.webMapPlaceholder}>
-            <Feather name="map" size={48} color="#9ca3af" />
-            <Text style={styles.webMapText}>Map view not available on web</Text>
-            <Text style={styles.webMapSubtext}>
-              Use the mobile app for interactive map tracking
-            </Text>
-          </View>
-        </View>
+        <MapView
+          provider={PROVIDER_GOOGLE}
+          style={styles.map}
+          region={region}
+          accessibilityLabel="Map showing route from start to destination"
+        >
+          <Marker
+            coordinate={{
+              latitude: leg.start_location.lat,
+              longitude: leg.start_location.lng,
+            }}
+            title="Start"
+            description="Starting location"
+            pinColor="white"
+          />
+
+          <Marker
+            coordinate={{
+              latitude: leg.end_location.lat,
+              longitude: leg.end_location.lng,
+            }}
+            title="Destination"
+            description="Destination location"
+            pinColor="red"
+          />
+
+          {leg.steps.map((step, index) => {
+            const isTransit = step.travel_mode === 'TRANSIT';
+            const isCurrent = index === currentStepIndex;
+
+            return (
+              <Marker
+                key={`waypoint-${index}`}
+                coordinate={{
+                  latitude: step.start_location.lat,
+                  longitude: step.start_location.lng,
+                }}
+                title={`Step ${index + 1}`}
+                description={getStepInstructions(step)}
+              />
+            );
+          })}
+
+          {routeCoordinates.length > 0 && (
+            <Polyline
+              coordinates={routeCoordinates}
+              strokeWidth={4}
+              strokeColor="#6a99e3"
+            />
+          )}
+        </MapView>
       </View>
 
       <View style={styles.stepsContainer}>
