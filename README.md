@@ -21,7 +21,6 @@ Speedrail is a modern transit tracking and route planning app built with Expo an
 
 - Node.js >= 16.x
 - npm >= 7.x
-- Expo CLI (`npm install -g expo-cli`)
 
 ### Installation
 

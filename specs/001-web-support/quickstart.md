@@ -4,7 +4,6 @@
 
 - Node.js 18+
 - npm 9+
-- Expo CLI (optional): `npm i -g expo-cli`
 
 ## Configure environment
 
