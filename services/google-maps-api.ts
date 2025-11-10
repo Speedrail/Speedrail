@@ -141,7 +141,7 @@ export interface DirectionsResponse {
   }>;
 }
 
-const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
 export class GoogleMapsService {
   private static baseUrl = 'https://maps.googleapis.com/maps/api';

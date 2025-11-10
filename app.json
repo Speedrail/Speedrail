@@ -31,7 +31,8 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/speedrail.png",
+      "basePath": "/Speedrail/"
     },
     "plugins": [
       "expo-router",
